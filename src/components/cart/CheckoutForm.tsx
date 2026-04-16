@@ -20,50 +20,56 @@ const checkoutSchema = z.object({
 
 type CheckoutFormData = z.infer<typeof checkoutSchema>
 
-async function createOrder(data: CheckoutFormData, items: ReturnType<typeof useCartStore.getState>['items'], total: number) {
-  const orderItems = items.map((item) => ({
-    product_id: item.product.id,
-    product_name: item.product.name,
-    quantity: item.quantity,
-    unit_price: item.product.price,
-    subtotal: item.product.price * item.quantity,
-  }))
-
-  const res = await fetch('/api/orders', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      customer_name: data.customerName,
-      customer_phone: data.customerPhone,
-      customer_address: data.customerAddress,
-      items: orderItems,
-      total,
-    }),
-  })
-
-  if (!res.ok) throw new Error('Error al guardar el pedido')
-  return res.json()
-}
-
 export default function CheckoutForm() {
   const [loading, setLoading] = useState<'whatsapp' | 'mercadopago' | null>(null)
   const { items, totalPrice, clearCart } = useCartStore()
 
-  const mpEnabled = !!process.env.NEXT_PUBLIC_APP_URL
-
   const {
     register,
     handleSubmit,
-    getValues,
     formState: { errors },
   } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
   })
 
+  const saveOrderForSuccessPage = (data: CheckoutFormData) => {
+    // Guardamos los datos en localStorage para mostrarlos en la página de éxito
+    localStorage.setItem('last_order', JSON.stringify({
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      customerAddress: data.customerAddress,
+      items: items.map((item) => ({
+        name: item.product.name,
+        quantity: item.quantity,
+        price: item.product.price,
+      })),
+      total: totalPrice(),
+    }))
+  }
+
   const handleWhatsApp = async (data: CheckoutFormData) => {
     setLoading('whatsapp')
     try {
-      const order = await createOrder(data, items, totalPrice())
+      // Guardar orden en DB
+      const orderItems = items.map((item) => ({
+        product_id: item.product.id,
+        product_name: item.product.name,
+        quantity: item.quantity,
+        unit_price: item.product.price,
+        subtotal: item.product.price * item.quantity,
+      }))
+
+      await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: data.customerName,
+          customer_phone: data.customerPhone,
+          customer_address: data.customerAddress,
+          items: orderItems,
+          total: totalPrice(),
+        }),
+      })
 
       const message = buildWhatsAppMessage({
         customerName: data.customerName,
@@ -73,14 +79,10 @@ export default function CheckoutForm() {
         total: totalPrice(),
       })
 
-      const whatsappPhone = process.env.NEXT_PUBLIC_WHATSAPP_PHONE!
-      const url = getWhatsAppUrl(whatsappPhone, message)
-
       clearCart()
-      window.open(url, '_blank')
-      toast.success('¡Pedido enviado a WhatsApp!')
+      window.location.href = getWhatsAppUrl(process.env.NEXT_PUBLIC_WHATSAPP_PHONE!, message)
     } catch {
-      toast.error('Hubo un error al procesar tu pedido. Intenta de nuevo.')
+      toast.error('Hubo un error. Intenta de nuevo.')
     } finally {
       setLoading(null)
     }
@@ -89,44 +91,53 @@ export default function CheckoutForm() {
   const handleMercadoPago = async (data: CheckoutFormData) => {
     setLoading('mercadopago')
     try {
-      const order = await createOrder(data, items, totalPrice())
-
-      const mpItems = items.map((item) => ({
-        name: item.product.name,
+      // 1. Guardar orden en DB
+      const orderItems = items.map((item) => ({
+        product_id: item.product.id,
+        product_name: item.product.name,
         quantity: item.quantity,
         unit_price: item.product.price,
+        subtotal: item.product.price * item.quantity,
       }))
 
-      const res = await fetch('/api/payments/create', {
+      const orderRes = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: mpItems, orderId: order.id }),
+        body: JSON.stringify({
+          customer_name: data.customerName,
+          customer_phone: data.customerPhone,
+          customer_address: data.customerAddress,
+          items: orderItems,
+          total: totalPrice(),
+        }),
       })
 
-      if (!res.ok) throw new Error('Error al crear el pago')
+      const order = await orderRes.json()
 
-      const { payment_url } = await res.json()
+      // 2. Guardar datos para la página de éxito
+      saveOrderForSuccessPage(data)
 
-      // Also send WhatsApp with payment link
-      const message = buildWhatsAppMessage({
-        customerName: data.customerName,
-        customerPhone: data.customerPhone,
-        customerAddress: data.customerAddress,
-        items,
-        total: totalPrice(),
-        paymentUrl: payment_url,
+      // 3. Crear preferencia de pago
+      const mpRes = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map((item) => ({
+            name: item.product.name,
+            quantity: item.quantity,
+            unit_price: item.product.price,
+          })),
+          orderId: order.id,
+        }),
       })
 
-      const whatsappPhone = process.env.NEXT_PUBLIC_WHATSAPP_PHONE!
-      const waUrl = getWhatsAppUrl(whatsappPhone, message)
+      if (!mpRes.ok) throw new Error('Error al crear el pago')
 
+      const { payment_url } = await mpRes.json()
+
+      // 4. Limpiar carrito y redirigir a MercadoPago (misma pestaña)
       clearCart()
-      // Open payment first
-      window.open(payment_url, '_blank')
-      // Then open WhatsApp so admin also gets notified
-      setTimeout(() => window.open(waUrl, '_blank'), 1000)
-
-      toast.success('¡Redirigiendo al pago!')
+      window.location.href = payment_url
     } catch {
       toast.error('Error al crear el pago. Intenta con WhatsApp.')
     } finally {
@@ -168,7 +179,6 @@ export default function CheckoutForm() {
         </div>
 
         <div className="space-y-3">
-          {/* MercadoPago button */}
           <Button
             type="button"
             onClick={handleSubmit(handleMercadoPago)}
@@ -181,14 +191,12 @@ export default function CheckoutForm() {
             Pagar con MercadoPago
           </Button>
 
-          {/* Divider */}
           <div className="flex items-center gap-3 text-xs text-gray-400">
             <div className="flex-1 border-t border-gray-200" />
             <span>o también</span>
             <div className="flex-1 border-t border-gray-200" />
           </div>
 
-          {/* WhatsApp button */}
           <Button
             type="button"
             onClick={handleSubmit(handleWhatsApp)}
@@ -204,7 +212,7 @@ export default function CheckoutForm() {
         </div>
 
         <p className="text-xs text-gray-500 mt-3 text-center">
-          MercadoPago acepta tarjetas y OXXO. WhatsApp coordina el pago directo.
+          MercadoPago acepta tarjetas y OXXO
         </p>
       </div>
     </form>
