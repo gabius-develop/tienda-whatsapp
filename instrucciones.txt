@@ -144,3 +144,13 @@ Para cambiar entre cuentas en el futuro
   Con eso, Git siempre sabrá qué cuenta usar para este proyecto específico.
 
   TEST-5781523022986616-041613-5eca9537063f6785cb88b36942e07c16-3328942070
+
+  
+  4. Super Admin (configuración de tienda)
+
+  - Entra a https://tienda-whatsapp-production-099c.up.railway.app/superadmin/login
+  - Escribe tu correo de Google → clic en Enviar link de acceso
+  - Revisa tu correo y da clic en el link
+  - Debes entrar al panel oscuro de configuración
+  - Cambia el nombre de la tienda y el mensaje de bienvenida → Guardar
+  - Regresa a la tienda y verifica que cambió

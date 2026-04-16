@@ -1,39 +1,52 @@
 'use client'
 
 import { useState } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { Code2, Lock, Mail, CheckCircle } from 'lucide-react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { Code2, Lock, Mail, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
 import toast from 'react-hot-toast'
 import { Suspense } from 'react'
 
 function LoginForm() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const forbidden = searchParams.get('error') === 'forbidden'
+
+  const [mode, setMode] = useState<'password' | 'magic'>('password')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
+
+  const handlePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) {
+      toast.error('Correo o contraseña incorrectos')
+      setLoading(false)
+      return
+    }
+    router.push('/superadmin/settings')
+  }
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+    const appUrl = window.location.origin
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: `${appUrl}/auth/callback?next=/superadmin/settings`,
-      },
+      options: { emailRedirectTo: `${appUrl}/auth/callback?next=/superadmin/settings` },
     })
-
     if (error) {
-      toast.error('Error al enviar el link. Verifica tu correo.')
+      toast.error(error.status === 429 ? 'Demasiados intentos. Espera unos minutos.' : 'Error al enviar el link.')
       setLoading(false)
       return
     }
-
     setSent(true)
   }
 
@@ -45,16 +58,11 @@ function LoginForm() {
           <h2 className="text-xl font-bold text-white mb-2">¡Link enviado!</h2>
           <p className="text-gray-400 text-sm mb-4">
             Revisa tu correo <span className="text-purple-400 font-medium">{email}</span> y
-            da clic en el link para acceder al panel.
+            da clic en el link para acceder. Da clic inmediatamente, expira en 1 hora.
           </p>
-          <p className="text-gray-600 text-xs">
-            Si no lo ves, revisa la carpeta de spam.
-          </p>
-          <button
-            onClick={() => setSent(false)}
-            className="mt-6 text-gray-500 hover:text-gray-300 text-sm transition-colors"
-          >
-            Usar otro correo
+          <button onClick={() => { setSent(false); setMode('password') }}
+            className="text-gray-500 hover:text-gray-300 text-sm transition-colors">
+            ← Volver al login
           </button>
         </div>
       </div>
@@ -64,6 +72,7 @@ function LoginForm() {
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
       <div className="bg-gray-900 rounded-2xl p-8 w-full max-w-sm border border-gray-800">
+        {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Code2 className="w-8 h-8 text-purple-400" />
@@ -80,36 +89,78 @@ function LoginForm() {
           )}
         </div>
 
-        <form onSubmit={handleMagicLink} className="space-y-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-400">
-              Correo electrónico del desarrollador
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu-correo@gmail.com"
-              required
-              className="block w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-            />
-          </div>
-
-          <Button
-            type="submit"
-            loading={loading}
-            size="lg"
-            className="w-full bg-purple-600 hover:bg-purple-700"
+        {/* Mode toggle */}
+        <div className="flex bg-gray-800 rounded-lg p-1 mb-6">
+          <button
+            onClick={() => setMode('password')}
+            className={`flex-1 py-1.5 text-sm rounded-md font-medium transition-colors ${
+              mode === 'password' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
           >
-            <Mail className="w-5 h-5" />
-            Enviar link de acceso
-          </Button>
-        </form>
+            Contraseña
+          </button>
+          <button
+            onClick={() => setMode('magic')}
+            className={`flex-1 py-1.5 text-sm rounded-md font-medium transition-colors ${
+              mode === 'magic' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Link por email
+          </button>
+        </div>
 
-        <p className="text-gray-600 text-xs text-center mt-4">
-          Recibirás un link en tu correo para entrar sin contraseña.
-          Solo funciona con el correo configurado como super admin.
-        </p>
+        {/* Password form */}
+        {mode === 'password' && (
+          <form onSubmit={handlePassword} className="space-y-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-400">Correo</label>
+              <input
+                type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu-correo@gmail.com" required
+                className="block w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-400">Contraseña</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password} onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••" required
+                  className="block w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 pr-10 text-sm text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <Button type="submit" loading={loading} size="lg" className="w-full bg-purple-600 hover:bg-purple-700 mt-2">
+              Ingresar
+            </Button>
+          </form>
+        )}
+
+        {/* Magic link form */}
+        {mode === 'magic' && (
+          <form onSubmit={handleMagicLink} className="space-y-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-400">Correo del desarrollador</label>
+              <input
+                type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu-correo@gmail.com" required
+                className="block w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+            <Button type="submit" loading={loading} size="lg" className="w-full bg-purple-600 hover:bg-purple-700">
+              <Mail className="w-5 h-5" />
+              Enviar link de acceso
+            </Button>
+            <p className="text-gray-600 text-xs text-center">
+              Da clic en el link inmediatamente, expira en 1 hora.
+            </p>
+          </form>
+        )}
       </div>
     </div>
   )
