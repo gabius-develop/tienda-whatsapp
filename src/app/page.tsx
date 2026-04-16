@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Product } from '@/types'
+import { StoreSettings, DEFAULT_SETTINGS } from '@/lib/settings'
 import ProductCard from '@/components/store/ProductCard'
 import CategoryFilter from '@/components/store/CategoryFilter'
 import CartButton from '@/components/store/CartButton'
@@ -15,6 +16,14 @@ export default function StorePage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS)
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((data) => setSettings(data))
+      .catch(() => {})
+  }, [])
 
   const fetchProducts = useCallback(async () => {
     setLoading(true)
@@ -33,7 +42,6 @@ export default function StorePage() {
   }, [fetchProducts])
 
   useEffect(() => {
-    // Extract unique categories
     const unique = [...new Set(products.map((p) => p.category).filter(Boolean))] as string[]
     setCategories(unique)
   }, [products])
@@ -45,7 +53,7 @@ export default function StorePage() {
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Store className="w-7 h-7 text-green-600" />
-            <h1 className="text-xl font-bold text-gray-900">Mi Tienda</h1>
+            <h1 className="text-xl font-bold text-gray-900">{settings.store_name}</h1>
           </div>
           <div className="flex-1 max-w-sm">
             <SearchBar value={search} onChange={setSearch} />
@@ -57,8 +65,8 @@ export default function StorePage() {
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Hero */}
         <div className="bg-gradient-to-r from-green-600 to-green-500 rounded-2xl p-8 mb-8 text-white">
-          <h2 className="text-3xl font-bold mb-2">Bienvenido a nuestra tienda</h2>
-          <p className="text-green-100">Los mejores productos al mejor precio. ¡Compra fácil por WhatsApp!</p>
+          <h2 className="text-3xl font-bold mb-2">{settings.welcome_title}</h2>
+          <p className="text-green-100">{settings.welcome_subtitle}</p>
         </div>
 
         {/* Promotions */}
@@ -98,7 +106,7 @@ export default function StorePage() {
       </main>
 
       <footer className="text-center py-8 text-sm text-gray-400 border-t border-gray-100 mt-12">
-        <p>Compra segura por WhatsApp Business</p>
+        <p>{settings.footer_text}</p>
       </footer>
     </div>
   )

@@ -7,10 +7,11 @@ interface OrderData {
   customerAddress: string
   items: CartItem[]
   total: number
+  paymentUrl?: string
 }
 
 export function buildWhatsAppMessage(data: OrderData): string {
-  const { customerName, customerPhone, customerAddress, items, total } = data
+  const { customerName, customerPhone, customerAddress, items, total, paymentUrl } = data
 
   const itemsList = items
     .map(
@@ -18,6 +19,10 @@ export function buildWhatsAppMessage(data: OrderData): string {
         `• ${item.product.name} x${item.quantity} = ${formatCurrency(item.product.price * item.quantity)}`
     )
     .join('\n')
+
+  const paymentSection = paymentUrl
+    ? `\n💳 *Link de pago MercadoPago:*\n${paymentUrl}\n`
+    : ''
 
   const message = `🛍️ *NUEVO PEDIDO*
 
@@ -29,7 +34,7 @@ export function buildWhatsAppMessage(data: OrderData): string {
 ${itemsList}
 
 💰 *Total: ${formatCurrency(total)}*
-
+${paymentSection}
 ---
 _Pedido realizado desde la tienda online_`
 
@@ -37,7 +42,6 @@ _Pedido realizado desde la tienda online_`
 }
 
 export function getWhatsAppUrl(phoneNumber: string, message: string): string {
-  // Remove spaces, dashes, and ensure it starts with country code
   const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, '')
   return `https://wa.me/${cleanPhone}?text=${message}`
 }

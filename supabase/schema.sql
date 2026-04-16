@@ -79,13 +79,17 @@ CREATE POLICY "Authenticated users can manage products"
   ON products FOR ALL
   USING (auth.role() = 'authenticated');
 
--- Orders: anyone can create, only authenticated can read
+-- Orders: anyone can create, only authenticated can read/update
 CREATE POLICY "Anyone can create orders"
   ON orders FOR INSERT
   WITH CHECK (true);
 
 CREATE POLICY "Authenticated users can view orders"
   ON orders FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can update orders"
+  ON orders FOR UPDATE
   USING (auth.role() = 'authenticated');
 
 -- Order items: anyone can create, only authenticated can read
