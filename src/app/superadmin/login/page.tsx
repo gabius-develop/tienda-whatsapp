@@ -1,36 +1,65 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Code2, Lock } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { Code2, Lock, Mail, CheckCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
 import toast from 'react-hot-toast'
 import { Suspense } from 'react'
 
 function LoginForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const forbidden = searchParams.get('error') === 'forbidden'
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [sent, setSent] = useState(false)
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+
+  const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${appUrl}/superadmin/settings`,
+      },
+    })
 
     if (error) {
-      toast.error('Credenciales incorrectas')
+      toast.error('Error al enviar el link. Verifica tu correo.')
       setLoading(false)
       return
     }
 
-    router.push('/superadmin/settings')
+    setSent(true)
+  }
+
+  if (sent) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+        <div className="bg-gray-900 rounded-2xl p-8 w-full max-w-sm border border-gray-800 text-center">
+          <CheckCircle className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">¡Link enviado!</h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Revisa tu correo <span className="text-purple-400 font-medium">{email}</span> y
+            da clic en el link para acceder al panel.
+          </p>
+          <p className="text-gray-600 text-xs">
+            Si no lo ves, revisa la carpeta de spam.
+          </p>
+          <button
+            onClick={() => setSent(false)}
+            className="mt-6 text-gray-500 hover:text-gray-300 text-sm transition-colors"
+          >
+            Usar otro correo
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -47,39 +76,41 @@ function LoginForm() {
           </div>
           {forbidden && (
             <p className="mt-3 text-sm text-red-400 bg-red-950 rounded-lg px-3 py-2">
-              Tu cuenta no tiene permisos de super administrador
+              Esta cuenta no tiene permisos de super administrador
             </p>
           )}
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <Input
-            label="Correo electrónico"
-            type="email"
-            placeholder="developer@ejemplo.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="bg-gray-800 border-gray-700 text-white placeholder-gray-500"
-          />
-          <Input
-            label="Contraseña"
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="bg-gray-800 border-gray-700 text-white placeholder-gray-500"
-          />
+        <form onSubmit={handleMagicLink} className="space-y-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-400">
+              Correo electrónico del desarrollador
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="tu-correo@gmail.com"
+              required
+              className="block w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            />
+          </div>
+
           <Button
             type="submit"
             loading={loading}
             size="lg"
-            className="w-full mt-6 bg-purple-600 hover:bg-purple-700"
+            className="w-full bg-purple-600 hover:bg-purple-700"
           >
-            Ingresar
+            <Mail className="w-5 h-5" />
+            Enviar link de acceso
           </Button>
         </form>
+
+        <p className="text-gray-600 text-xs text-center mt-4">
+          Recibirás un link en tu correo para entrar sin contraseña.
+          Solo funciona con el correo configurado como super admin.
+        </p>
       </div>
     </div>
   )
