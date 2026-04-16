@@ -12,7 +12,10 @@
       "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/app/admin/\\(protected\\)/products/new\")",
       "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/app/admin/\\(protected\\)/products/[id]\")",
       "Bash(npx tsc:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/app/admin/\\(protected\\)/orders\")",
+      "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/app/admin/\\(protected\\)/promotions/new\")",
+      "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/app/admin/\\(protected\\)/promotions/[id]\")"
     ]
   }
 }

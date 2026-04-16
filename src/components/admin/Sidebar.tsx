@@ -2,14 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Package, LogOut, Store } from 'lucide-react'
+import { LayoutDashboard, Package, LogOut, Store, ShoppingBag, Megaphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/orders', label: 'Pedidos', icon: ShoppingBag },
   { href: '/admin/products', label: 'Productos', icon: Package },
+  { href: '/admin/promotions', label: 'Promociones', icon: Megaphone },
 ]
 
 export default function Sidebar() {

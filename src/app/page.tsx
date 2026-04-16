@@ -6,6 +6,7 @@ import ProductCard from '@/components/store/ProductCard'
 import CategoryFilter from '@/components/store/CategoryFilter'
 import CartButton from '@/components/store/CartButton'
 import SearchBar from '@/components/store/SearchBar'
+import PromotionsBanner from '@/components/store/PromotionsBanner'
 import { Store } from 'lucide-react'
 
 export default function StorePage() {
@@ -59,6 +60,9 @@ export default function StorePage() {
           <h2 className="text-3xl font-bold mb-2">Bienvenido a nuestra tienda</h2>
           <p className="text-green-100">Los mejores productos al mejor precio. ¡Compra fácil por WhatsApp!</p>
         </div>
+
+        {/* Promotions */}
+        <PromotionsBanner />
 
         {/* Filters */}
         {categories.length > 0 && (

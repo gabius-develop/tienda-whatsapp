@@ -127,3 +127,18 @@ Estructura creada
 
   La primera vez que hagas push, GitHub te pedirá tu usuario y contraseña (o un token). Si te pide token, ve a GitHub → Settings → Developer
   Settings → Personal Access Tokens → Tokens (classic) → Generate new token → marca repo → copia el token y úsalo como contraseña.
+
+
+
+Para cambiar entre cuentas en el futuro
+
+  La forma más limpia de manejar múltiples cuentas de GitHub en Windows es usando el Administrador de credenciales que ya viste:
+
+  - Cuando quieras cambiar de cuenta, vuelve al Administrador de credenciales → borra la entrada de github.com → la próxima vez que hagas git
+  push, te volverá a pedir usuario y contraseña/token de la cuenta que necesites.
+
+  O puedes incluir el usuario directamente en la URL del remote para que no haya confusión:
+
+  git remote set-url origin https://gabius-develop@github.com/gabius-develop/tienda-whatsapp.git
+
+  Con eso, Git siempre sabrá qué cuenta usar para este proyecto específico.
