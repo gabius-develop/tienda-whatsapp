@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --yes)"
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --yes)",
+      "Bash(npm install:*)",
+      "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/types\")",
+      "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/lib/supabase\")",
+      "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/store\")",
+      "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/hooks\")",
+      "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/components/store\")",
+      "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/app/admin/\\(protected\\)/dashboard\")",
+      "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/app/admin/\\(protected\\)/products/new\")",
+      "Bash(mkdir -p \"/c/Users/pipio/OneDrive/Escritorio/todo programacion quemando naves/tiendawhatsapp/src/app/admin/\\(protected\\)/products/[id]\")",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

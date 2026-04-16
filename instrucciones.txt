@@ -1,0 +1,129 @@
+Paso 1: Crear tu usuario admin en Supabase                                                                                                   
+                                                                                                                                             
+  El sistema usa Supabase Auth para el login, así que el usuario y contraseña los creas TÚ directamente en Supabase. Haz esto:                 
+  
+  1. Entra a https://supabase.com → tu proyecto                                                                                                
+  2. En el menú izquierdo: Authentication → Users                                                                                            
+  3. Clic en "Add user" → "Create new user"
+  4. Pon el email y contraseña que quieras (por ejemplo admin@mitienda.com y una contraseña segura)
+  5. Activa "Auto Confirm User"
+  6. Clic en "Create user"
+
+  Esas credenciales son las que usas en /admin/login.
+
+  ---
+  Paso 2: Obtener tus keys de Supabase
+
+  En tu proyecto de Supabase:
+  1. Menú izquierdo → Settings (engrane) → API
+  2. Copia:
+    - Project URL → empieza con https://xxxxx.supabase.co
+    - anon public key → cadena larga que empieza con eyJ...
+
+  ---
+  Paso 3: Crear el archivo .env.local
+
+  El archivo va en la raíz del proyecto. Lo creo ahora con tu número de WhatsApp:
+
+Pasos para poner en producción
+
+  1. Configurar Supabase
+
+  1. Crea proyecto en https://supabase.com
+  2. Ve a SQL Editor y pega el contenido de supabase/schema.sql
+  3. Ve a Authentication > Users y crea un usuario admin (email + password)
+
+  2. Variables de entorno
+
+  Crea el archivo .env.local (copia .env.local.example):
+  NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+  NEXT_PUBLIC_WHATSAPP_PHONE=5212345678901
+
+  3. Probar localmente
+
+  npm run dev
+  - Tienda: http://localhost:3000
+  - Admin: http://localhost:3000/admin/login
+
+  4. Publicar en Railway
+
+  1. Sube el código a GitHub
+  2. En Railway: New Project > Deploy from GitHub
+  3. Agrega las variables de entorno en Railway Settings
+  4. Deploy automático
+
+  Funcionalidades incluidas
+
+  - Tienda con búsqueda en tiempo real + filtros por categoría
+  - Carrito persistido en localStorage (se conserva al cerrar el navegador)
+  - Checkout con nombre, teléfono y dirección → abre WhatsApp con pedido formateado
+  - Los pedidos se guardan en Supabase (para el ranking)
+  - Admin protegido por middleware con Supabase Auth
+  - CRUD completo de productos con subida de imágenes a Supabase Storage
+  - Dashboard con 4 métricas, top 5 productos más vendidos, últimos pedidos
+
+
+Estructura creada
+
+  src/
+  ├── app/
+  │   ├── page.tsx                    ← Tienda con búsqueda y filtros
+  │   ├── cart/page.tsx               ← Carrito + checkout form
+  │   ├── product/[id]/page.tsx       ← Detalle de producto
+  │   ├── admin/
+  │   │   ├── login/page.tsx          ← Login del admin
+  │   │   └── (protected)/
+  │   │       ├── dashboard/page.tsx  ← Stats + ranking de ventas
+  │   │       └── products/           ← CRUD completo de productos
+  │   └── api/                        ← REST API completa
+  ├── components/store|cart|admin|ui  ← Componentes organizados
+  ├── store/cartStore.ts              ← Zustand (persistido)
+  ├── lib/whatsapp.ts                 ← Generador de mensajes
+  └── middleware.ts                   ← Auth guard
+  supabase/schema.sql                 ← Schema + RLS listo para pegar
+
+
+ Resumen de lo que debes hacer tú
+
+  ┌─────┬─────────────────────────────────┬───────────────────────────────────┐
+  │  #  │            Qué hacer            │               Dónde               │
+  ├─────┼─────────────────────────────────┼───────────────────────────────────┤
+  │ 1   │ Crear usuario admin             │ Supabase → Authentication → Users │
+  ├─────┼─────────────────────────────────┼───────────────────────────────────┤
+  │ 2   │ Copiar URL y Anon Key           │ Supabase → Settings → API         │
+  ├─────┼─────────────────────────────────┼───────────────────────────────────┤
+  │ 3   │ Editar .env.local con esas keys │ Carpeta del proyecto              │
+  ├─────┼─────────────────────────────────┼───────────────────────────────────┤
+  │ 4   │ Crear repo en GitHub            │ github.com                        │
+  ├─────┼─────────────────────────────────┼───────────────────────────────────┤
+  │ 5   │ Ejecutar los 5 comandos git     │ Símbolo del sistema               │
+  └─────┴─────────────────────────────────┴───────────────────────────────────┘
+
+  Una vez que hagas todo eso, me dices y continuamos con publicar en Railway.
+
+  Tercero: crea el repositorio en GitHub
+
+  1. En GitHub, clic en el + (arriba a la derecha) → New repository
+  2. Nombre del repo: tiendawhatsapp
+  3. Déjalo en Private (privado, para que nadie vea tu código)
+  4. NO marques "Add README" ni nada — déjalo vacío
+  5. Clic en Create repository
+  6. GitHub te mostrará una página con instrucciones — copia la URL que termina en .git
+
+  Cuarto: sube el código
+
+  Abre el Símbolo del sistema (busca "cmd" en Windows), navega a tu proyecto y ejecuta estos comandos uno por uno:
+
+  cd "C:\Users\pipio\OneDrive\Escritorio\todo programacion quemando naves\tiendawhatsapp"
+
+  git remote add origin https://github.com/TU-USUARIO/tiendawhatsapp.git
+  (reemplaza TU-USUARIO con tu usuario de GitHub)
+
+  git add .
+  git commit -m "Initial commit: tienda whatsapp"
+  git branch -M main
+  git push -u origin main
+
+  La primera vez que hagas push, GitHub te pedirá tu usuario y contraseña (o un token). Si te pide token, ve a GitHub → Settings → Developer
+  Settings → Personal Access Tokens → Tokens (classic) → Generate new token → marca repo → copia el token y úsalo como contraseña.
