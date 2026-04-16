@@ -15,17 +15,16 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${appUrl}/superadmin/settings`,
+        emailRedirectTo: `${appUrl}/auth/callback?next=/superadmin/settings`,
       },
     })
 
