@@ -50,7 +50,7 @@ export default function LivePage() {
   }, [live?.active, live?.started_at])
 
   const handleAddToCart = (product: Product) => {
-    addItem(product, 1)
+    addItem(product)
     toast.success(`${product.name} agregado al carrito`)
   }
 
