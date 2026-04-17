@@ -1,18 +1,25 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Save, Eye, RefreshCw } from 'lucide-react'
+import { Save, Eye, RefreshCw, LogOut } from 'lucide-react'
 import { StoreSettings, DEFAULT_SETTINGS } from '@/lib/settings'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export default function SuperAdminSettingsPage() {
+  const router = useRouter()
   const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  const handleLogout = async () => {
+    await fetch('/api/superadmin/auth', { method: 'DELETE' })
+    router.push('/superadmin/login')
+  }
 
   const fetchSettings = async () => {
     setLoading(true)
@@ -67,6 +74,13 @@ export default function SuperAdminSettingsPage() {
               Ver tienda
             </button>
           </Link>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 text-red-500 hover:text-red-400 px-3 py-2 rounded-lg border border-red-900 hover:border-red-700 transition-colors text-sm"
+          >
+            <LogOut className="w-4 h-4" />
+            Salir
+          </button>
         </div>
       </div>
 

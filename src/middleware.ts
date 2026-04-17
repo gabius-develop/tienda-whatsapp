@@ -31,14 +31,22 @@ export async function middleware(request: NextRequest) {
 
   // ── Super Admin routes ────────────────────────────────────
   if (pathname.startsWith('/superadmin') && pathname !== '/superadmin/login') {
-    const supabase = buildSupabaseClient(request, response)
-    const { data: { user } } = await supabase.auth.getUser()
+    const token = request.cookies.get('superadmin_auth')?.value
+    const superadminPassword = process.env.SUPERADMIN_PASSWORD
 
-    if (!user) return NextResponse.redirect(new URL('/superadmin/login', request.url))
+    if (!token || !superadminPassword) {
+      return NextResponse.redirect(new URL('/superadmin/login', request.url))
+    }
 
-    const superadminEmail = process.env.SUPERADMIN_EMAIL
-    if (!superadminEmail || user.email !== superadminEmail) {
-      return NextResponse.redirect(new URL('/superadmin/login?error=forbidden', request.url))
+    // Verificar que el token coincide con el hash de la contraseña
+    const encoder = new TextEncoder()
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(superadminPassword))
+    const expectedToken = Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+
+    if (token !== expectedToken) {
+      return NextResponse.redirect(new URL('/superadmin/login', request.url))
     }
 
     return response
