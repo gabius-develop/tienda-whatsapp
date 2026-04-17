@@ -9,19 +9,21 @@ interface JitsiEmbedProps {
   onLeave?: () => void
 }
 
+interface JitsiAPI {
+  dispose: () => void
+  executeCommand: (command: string, ...args: unknown[]) => void
+  addEventListener: (event: string, listener: () => void) => void
+}
+
 declare global {
   interface Window {
-    JitsiMeetExternalAPI: new (domain: string, options: object) => {
-      dispose: () => void
-      executeCommand: (command: string, ...args: unknown[]) => void
-      addEventListener: (event: string, listener: () => void) => void
-    }
+    JitsiMeetExternalAPI: new (domain: string, options: object) => JitsiAPI
   }
 }
 
 export default function JitsiEmbed({ room, displayName, isHost = false, onLeave }: JitsiEmbedProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const apiRef = useRef<ReturnType<typeof window.JitsiMeetExternalAPI> | null>(null)
+  const apiRef = useRef<JitsiAPI | null>(null)
 
   useEffect(() => {
     if (!room || !containerRef.current) return
