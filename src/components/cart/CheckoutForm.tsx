@@ -146,6 +146,14 @@ export default function CheckoutForm() {
   }
 
   return (
+    <>
+    {loading === 'mercadopago' && (
+      <div className="fixed inset-0 bg-black/60 z-50 flex flex-col items-center justify-center">
+        <div className="animate-spin w-16 h-16 border-4 border-white border-t-transparent rounded-full mb-4" />
+        <p className="text-white text-xl font-semibold">Procesando pago...</p>
+        <p className="text-white/70 text-sm mt-1">Redirigiendo a MercadoPago</p>
+      </div>
+    )}
     <form className="space-y-4">
       <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Datos de envío</h2>
@@ -216,5 +224,6 @@ export default function CheckoutForm() {
         </p>
       </div>
     </form>
+    </>
   )
 }

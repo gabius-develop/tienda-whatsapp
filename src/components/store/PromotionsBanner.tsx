@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { Promotion } from '@/types'
+import { getWhatsAppUrl } from '@/lib/whatsapp'
 
 const BADGE_COLORS: Record<string, string> = {
   green: 'bg-green-500',
@@ -35,37 +36,52 @@ export default function PromotionsBanner() {
     <div className="mb-8">
       <h2 className="text-lg font-semibold text-gray-800 mb-3">Promociones</h2>
       <div className="relative overflow-hidden rounded-2xl">
-        {promotions.map((promo, i) => (
-          <div
-            key={promo.id}
-            className={`transition-opacity duration-500 ${i === current ? 'block' : 'hidden'}`}
-          >
-            <div className="relative bg-gradient-to-r from-gray-900 to-gray-700 rounded-2xl overflow-hidden min-h-[140px]">
-              {promo.image_url && (
-                <Image
-                  src={promo.image_url}
-                  alt={promo.title}
-                  fill
-                  className="object-cover opacity-60"
-                  sizes="(max-width: 768px) 100vw, 1200px"
-                />
-              )}
-              <div className="relative z-10 p-6 flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-1">{promo.title}</h3>
-                  {promo.description && (
-                    <p className="text-white/80 text-sm max-w-md">{promo.description}</p>
+        {promotions.map((promo, i) => {
+          const handlePromoClick = () => {
+            const parts = [promo.title, promo.discount_label].filter(Boolean).join(' - ')
+            const text = `¡Hola! Me interesa la promoción: ${parts}. ¿Puedes darme más información?`
+            const url = getWhatsAppUrl(process.env.NEXT_PUBLIC_WHATSAPP_PHONE!, text)
+            window.location.href = url
+          }
+          return (
+            <div
+              key={promo.id}
+              className={`transition-opacity duration-500 ${i === current ? 'block' : 'hidden'}`}
+            >
+              <button
+                type="button"
+                onClick={handlePromoClick}
+                className="w-full text-left cursor-pointer group"
+              >
+                <div className="relative bg-gradient-to-r from-gray-900 to-gray-700 rounded-2xl overflow-hidden min-h-[140px] group-hover:brightness-110 transition-all">
+                  {promo.image_url && (
+                    <Image
+                      src={promo.image_url}
+                      alt={promo.title}
+                      fill
+                      className="object-cover opacity-60"
+                      sizes="(max-width: 768px) 100vw, 1200px"
+                    />
                   )}
-                </div>
-                {promo.discount_label && (
-                  <div className={`flex-shrink-0 ml-4 ${BADGE_COLORS[promo.badge_color] ?? 'bg-green-500'} text-white font-bold text-lg px-5 py-3 rounded-xl text-center shadow-lg`}>
-                    {promo.discount_label}
+                  <div className="relative z-10 p-6 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-1">{promo.title}</h3>
+                      {promo.description && (
+                        <p className="text-white/80 text-sm max-w-md">{promo.description}</p>
+                      )}
+                      <p className="text-white/60 text-xs mt-2">Toca para consultar por WhatsApp</p>
+                    </div>
+                    {promo.discount_label && (
+                      <div className={`flex-shrink-0 ml-4 ${BADGE_COLORS[promo.badge_color] ?? 'bg-green-500'} text-white font-bold text-lg px-5 py-3 rounded-xl text-center shadow-lg`}>
+                        {promo.discount_label}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
+              </button>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {/* Dots navigation */}
         {promotions.length > 1 && (
