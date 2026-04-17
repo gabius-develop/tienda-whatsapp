@@ -8,6 +8,7 @@ import CategoryFilter from '@/components/store/CategoryFilter'
 import CartButton from '@/components/store/CartButton'
 import SearchBar from '@/components/store/SearchBar'
 import PromotionsBanner from '@/components/store/PromotionsBanner'
+import LiveBanner from '@/components/store/LiveBanner'
 import FloatingCart from '@/components/store/FloatingCart'
 import { Store } from 'lucide-react'
 
@@ -69,6 +70,9 @@ export default function StorePage() {
           <h2 className="text-3xl font-bold mb-2">{settings.welcome_title}</h2>
           <p className="text-green-100">{settings.welcome_subtitle}</p>
         </div>
+
+        {/* Live banner */}
+        <LiveBanner />
 
         {/* Promotions */}
         <PromotionsBanner />

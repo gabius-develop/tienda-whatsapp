@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Package, LogOut, Store, ShoppingBag, Megaphone } from 'lucide-react'
+import { LayoutDashboard, Package, LogOut, Store, ShoppingBag, Megaphone, Radio } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -12,6 +12,7 @@ const navItems = [
   { href: '/admin/orders', label: 'Pedidos', icon: ShoppingBag },
   { href: '/admin/products', label: 'Productos', icon: Package },
   { href: '/admin/promotions', label: 'Promociones', icon: Megaphone },
+  { href: '/admin/live', label: 'En Vivo', icon: Radio, highlight: true },
 ]
 
 export default function Sidebar() {
@@ -35,7 +36,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-1">
-        {navItems.map(({ href, label, icon: Icon }) => (
+        {navItems.map(({ href, label, icon: Icon, highlight }) => (
           <Link
             key={href}
             href={href}
@@ -43,11 +44,16 @@ export default function Sidebar() {
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
               pathname.startsWith(href)
                 ? 'bg-green-600 text-white'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                : highlight
+                  ? 'text-red-400 hover:bg-red-950 hover:text-red-300'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
             )}
           >
             <Icon className="w-5 h-5" />
             {label}
+            {highlight && !pathname.startsWith(href) && (
+              <span className="ml-auto w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            )}
           </Link>
         ))}
       </nav>
