@@ -8,6 +8,7 @@ import CategoryFilter from '@/components/store/CategoryFilter'
 import CartButton from '@/components/store/CartButton'
 import SearchBar from '@/components/store/SearchBar'
 import PromotionsBanner from '@/components/store/PromotionsBanner'
+import FloatingCart from '@/components/store/FloatingCart'
 import { Store } from 'lucide-react'
 
 export default function StorePage() {
@@ -108,6 +109,8 @@ export default function StorePage() {
       <footer className="text-center py-8 text-sm text-gray-400 border-t border-gray-100 mt-12">
         <p>{settings.footer_text}</p>
       </footer>
+
+      <FloatingCart />
     </div>
   )
 }
