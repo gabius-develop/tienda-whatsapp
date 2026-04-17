@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Radio, Copy, Share2, StopCircle, Users, ExternalLink } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Radio, Copy, Share2, StopCircle, ExternalLink } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import toast from 'react-hot-toast'
+
+const JitsiEmbed = dynamic(() => import('@/components/live/JitsiEmbed'), { ssr: false })
 
 interface LiveState {
   active: boolean
@@ -59,7 +62,7 @@ export default function AdminLivePage() {
         body: JSON.stringify({ room }),
       })
       if (!res.ok) throw new Error()
-      await fetchStatus()
+      setLive({ active: true, room, started_at: new Date().toISOString() })
       toast.success('¡Transmisión iniciada!')
     } catch {
       toast.error('Error al iniciar la transmisión')
@@ -73,7 +76,7 @@ export default function AdminLivePage() {
     setStopping(true)
     try {
       await fetch('/api/live', { method: 'DELETE' })
-      await fetchStatus()
+      setLive({ active: false, room: null, started_at: null })
       toast.success('Transmisión terminada')
     } catch {
       toast.error('Error al terminar la transmisión')
@@ -93,10 +96,6 @@ export default function AdminLivePage() {
     )
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
-
-  const jitsiUrl = live.room
-    ? `https://meet.jit.si/${live.room}#config.prejoinPageEnabled=false&config.startWithVideoMuted=false&config.startWithAudioMuted=false&config.disableDeepLinking=true&userInfo.displayName=Vendedor&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_BRAND_WATERMARK=false`
-    : null
 
   if (loading) {
     return (
@@ -119,14 +118,13 @@ export default function AdminLivePage() {
       </div>
 
       {!live.active ? (
-        /* ── SIN TRANSMISIÓN ACTIVA ── */
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center max-w-lg mx-auto">
           <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <Radio className="w-12 h-12 text-red-400" />
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">No hay transmisión activa</h2>
           <p className="text-gray-500 text-sm mb-8">
-            Al iniciar, se generará un link único que puedes compartir por WhatsApp con tus clientes.
+            Al iniciar, el navegador pedirá acceso a tu cámara y micrófono. Comparte el link con tus clientes por WhatsApp.
           </p>
           <button
             onClick={handleStart}
@@ -138,7 +136,6 @@ export default function AdminLivePage() {
           </button>
         </div>
       ) : (
-        /* ── TRANSMISIÓN ACTIVA ── */
         <div className="space-y-4">
           {/* Barra de estado */}
           <div className="bg-red-600 rounded-2xl p-4 flex items-center justify-between text-white">
@@ -149,30 +146,20 @@ export default function AdminLivePage() {
                 <span className="bg-red-700 px-3 py-1 rounded-full text-sm font-mono">{elapsed}</span>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 opacity-80" />
-              <span className="text-sm opacity-80">Los clientes se unen por el link</span>
-            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Jitsi iframe */}
-            <div className="lg:col-span-2">
-              <div className="bg-black rounded-2xl overflow-hidden" style={{ height: '480px' }}>
-                {jitsiUrl && (
-                  <iframe
-                    src={jitsiUrl}
-                    allow="camera; microphone; fullscreen; display-capture; autoplay"
-                    className="w-full h-full"
-                    style={{ border: 'none' }}
-                  />
-                )}
-              </div>
+            {/* Jitsi via External API */}
+            <div className="lg:col-span-2 bg-black rounded-2xl overflow-hidden" style={{ height: '480px' }}>
+              <JitsiEmbed
+                room={live.room!}
+                displayName="Vendedor"
+                isHost={true}
+              />
             </div>
 
             {/* Panel lateral */}
             <div className="space-y-4">
-              {/* Link para compartir */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <p className="text-sm font-semibold text-gray-700 mb-3">
                   Link para los clientes
@@ -207,7 +194,6 @@ export default function AdminLivePage() {
                 </div>
               </div>
 
-              {/* Terminar */}
               <button
                 onClick={handleStop}
                 disabled={stopping}

@@ -3,11 +3,14 @@
 import { useEffect, useState } from 'react'
 import { Radio, ShoppingCart, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { Product } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import toast from 'react-hot-toast'
+
+const JitsiEmbed = dynamic(() => import('@/components/live/JitsiEmbed'), { ssr: false })
 
 interface LiveState {
   active: boolean
@@ -24,17 +27,15 @@ export default function LivePage() {
   useEffect(() => {
     fetch('/api/live').then(r => r.json()).then(setLive)
     fetch('/api/products').then(r => r.json()).then((data: Product[]) =>
-      setProducts(data.slice(0, 6))
+      setProducts(data.slice(0, 8))
     )
 
-    // Refrescar estado cada 30 segundos
     const interval = setInterval(() => {
       fetch('/api/live').then(r => r.json()).then(setLive)
     }, 30_000)
     return () => clearInterval(interval)
   }, [])
 
-  // Contador de tiempo en vivo
   useEffect(() => {
     if (!live?.active || !live.started_at) { setElapsed(''); return }
     const update = () => {
@@ -55,15 +56,9 @@ export default function LivePage() {
   }
 
   const handleAskWhatsApp = (product: Product) => {
-    const text = encodeURIComponent(
-      `¡Hola! Vi "${product.name}" en la transmisión en vivo. ¿Puedes darme más información?`
-    )
-    window.location.href = getWhatsAppUrl(process.env.NEXT_PUBLIC_WHATSAPP_PHONE!, decodeURIComponent(text))
+    const msg = `¡Hola! Vi "${product.name}" en la transmisión en vivo. ¿Puedes darme más información?`
+    window.location.href = getWhatsAppUrl(process.env.NEXT_PUBLIC_WHATSAPP_PHONE!, msg)
   }
-
-  const jitsiUrl = live?.room
-    ? `https://meet.jit.si/${live.room}#config.prejoinPageEnabled=false&config.startWithVideoMuted=true&config.startWithAudioMuted=true&config.disableDeepLinking=true&userInfo.displayName=Cliente&interfaceConfig.TOOLBAR_BUTTONS=['chat','raisehand','hangup']`
-    : null
 
   if (!live) {
     return (
@@ -95,9 +90,9 @@ export default function LivePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-gray-950 flex flex-col">
       {/* Header */}
-      <header className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+      <header className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-2 bg-red-600 text-white text-sm font-bold px-3 py-1 rounded-full">
             <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
@@ -112,27 +107,24 @@ export default function LivePage() {
         </Link>
       </header>
 
-      <div className="flex flex-col lg:flex-row h-[calc(100vh-56px)]">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
         {/* Stream principal */}
-        <div className="flex-1 bg-black">
-          {jitsiUrl && (
-            <iframe
-              src={jitsiUrl}
-              allow="camera; microphone; fullscreen; display-capture; autoplay"
-              className="w-full h-full"
-              style={{ border: 'none', minHeight: '320px' }}
-            />
-          )}
+        <div className="flex-1 bg-black min-h-[320px]">
+          <JitsiEmbed
+            room={live.room!}
+            displayName="Cliente"
+            isHost={false}
+          />
         </div>
 
         {/* Panel de productos */}
         <aside className="w-full lg:w-80 bg-gray-900 border-t lg:border-t-0 lg:border-l border-gray-800 flex flex-col">
-          <div className="p-4 border-b border-gray-800">
+          <div className="p-4 border-b border-gray-800 flex-shrink-0">
             <h2 className="text-white font-semibold flex items-center gap-2">
               <ShoppingCart className="w-5 h-5 text-green-400" />
               Productos disponibles
             </h2>
-            <p className="text-gray-500 text-xs mt-1">Agrega al carrito mientras ves el live</p>
+            <p className="text-gray-500 text-xs mt-1">Compra mientras ves el live</p>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -172,8 +164,7 @@ export default function LivePage() {
             ))}
           </div>
 
-          {/* Ir al carrito */}
-          <div className="p-3 border-t border-gray-800">
+          <div className="p-3 border-t border-gray-800 flex-shrink-0">
             <Link
               href="/cart"
               className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium py-3 rounded-xl transition-colors text-sm"
