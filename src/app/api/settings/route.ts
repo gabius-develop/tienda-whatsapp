@@ -20,18 +20,25 @@ export async function GET() {
   }
 }
 
+async function verifySuperadminCookie(request: NextRequest): Promise<boolean> {
+  const token = request.cookies.get('superadmin_auth')?.value
+  const superadminPassword = process.env.SUPERADMIN_PASSWORD
+  if (!token || !superadminPassword) return false
+
+  const encoder = new TextEncoder()
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(superadminPassword))
+  const expectedToken = Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+
+  return token === expectedToken
+}
+
 export async function PUT(request: NextRequest) {
+  const authorized = await verifySuperadminCookie(request)
+  if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  // Only superadmin can update settings
-  const superadminEmail = process.env.SUPERADMIN_EMAIL
-  if (!superadminEmail || user.email !== superadminEmail) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
   const body: Partial<StoreSettings> = await request.json()
 
   const upserts = Object.entries(body).map(([key, value]) => ({
