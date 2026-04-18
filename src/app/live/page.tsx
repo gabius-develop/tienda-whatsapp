@@ -11,7 +11,7 @@ import toast from 'react-hot-toast'
 
 interface LiveState {
   active: boolean
-  room_url: string | null
+  youtube_id: string | null
   started_at: string | null
 }
 
@@ -56,11 +56,6 @@ export default function LivePage() {
     window.location.href = getWhatsAppUrl(process.env.NEXT_PUBLIC_WHATSAPP_PHONE!, msg)
   }
 
-  // Viewer URL: sin token, con cámara y micrófono apagados por defecto
-  const viewerIframeUrl = live?.room_url
-    ? `${live.room_url}?startVideoOff=1&startAudioOff=1`
-    : null
-
   if (!live) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -69,7 +64,7 @@ export default function LivePage() {
     )
   }
 
-  if (!live.active) {
+  if (!live.active || !live.youtube_id) {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4 text-center">
         <div className="w-24 h-24 bg-gray-800 rounded-full flex items-center justify-center mb-6">
@@ -111,16 +106,15 @@ export default function LivePage() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
            className="lg:flex-row">
 
-        {/* Stream */}
-        <div className="bg-black lg:flex-1" style={{ height: '55vw', maxHeight: '70vh' }}>
-          {viewerIframeUrl && (
-            <iframe
-              src={viewerIframeUrl}
-              allow="camera; microphone; fullscreen; display-capture; autoplay"
-              className="w-full h-full border-0"
-              title="Transmisión en vivo"
-            />
-          )}
+        {/* YouTube embed */}
+        <div className="bg-black lg:flex-1" style={{ height: '56.25vw', maxHeight: '72vh' }}>
+          <iframe
+            src={`https://www.youtube.com/embed/${live.youtube_id}?autoplay=1&rel=0`}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="w-full h-full border-0"
+            title="Transmisión en vivo"
+          />
         </div>
 
         {/* Panel de productos */}

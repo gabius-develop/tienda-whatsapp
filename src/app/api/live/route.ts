@@ -1,91 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-// GET — cualquiera puede verificar si hay transmisión activa
+function extractYouTubeId(input: string): string | null {
+  // Formatos soportados:
+  // https://www.youtube.com/watch?v=VIDEO_ID
+  // https://youtu.be/VIDEO_ID
+  // https://www.youtube.com/live/VIDEO_ID
+  // VIDEO_ID directo
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/live\/)([a-zA-Z0-9_-]{11})/,
+    /^([a-zA-Z0-9_-]{11})$/,
+  ]
+  for (const pattern of patterns) {
+    const match = input.trim().match(pattern)
+    if (match) return match[1]
+  }
+  return null
+}
+
+// GET — verifica si hay transmisión activa
 export async function GET() {
   const supabase = await createClient()
 
   const { data } = await supabase
     .from('store_settings')
     .select('key, value')
-    .in('key', ['live_active', 'live_room_url', 'live_started_at'])
+    .in('key', ['live_active', 'live_youtube_id', 'live_started_at'])
 
   const map: Record<string, string> = {}
   data?.forEach(({ key, value }) => { if (value) map[key] = value })
 
   return NextResponse.json({
     active: map['live_active'] === 'true',
-    room_url: map['live_room_url'] ?? null,
+    youtube_id: map['live_youtube_id'] ?? null,
     started_at: map['live_started_at'] ?? null,
   })
 }
 
-// POST — inicia la transmisión creando una sala en Daily.co
-export async function POST() {
+// POST — inicia la transmisión con el link de YouTube
+export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const dailyKey = process.env.DAILY_API_KEY
-  if (!dailyKey) {
-    return NextResponse.json({ error: 'DAILY_API_KEY no configurado' }, { status: 500 })
+  const { youtube_url } = await request.json()
+  const youtubeId = extractYouTubeId(youtube_url ?? '')
+
+  if (!youtubeId) {
+    return NextResponse.json({ error: 'URL de YouTube no válida' }, { status: 400 })
   }
 
-  // 1. Crear sala en Daily.co
-  const roomName = `tienda-live-${Date.now()}`
-  const roomRes = await fetch('https://api.daily.co/v1/rooms', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${dailyKey}`,
-    },
-    body: JSON.stringify({
-      name: roomName,
-      properties: {
-        exp: Math.floor(Date.now() / 1000) + 12 * 3600, // expira en 12h
-        enable_chat: true,
-        enable_knocking: false,
-        start_video_off: false,
-        start_audio_off: false,
-      },
-    }),
-  })
-
-  if (!roomRes.ok) {
-    const err = await roomRes.text()
-    return NextResponse.json({ error: `Daily.co: ${err}` }, { status: 500 })
-  }
-
-  const room = await roomRes.json()
-
-  // 2. Crear token de anfitrión
-  const tokenRes = await fetch('https://api.daily.co/v1/meeting-tokens', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${dailyKey}`,
-    },
-    body: JSON.stringify({
-      properties: {
-        room_name: roomName,
-        is_owner: true,
-        start_video_off: false,
-        start_audio_off: false,
-      },
-    }),
-  })
-
-  const { token: hostToken } = await tokenRes.json()
-
-  // 3. Guardar estado en store_settings
   const now = new Date().toISOString()
   await supabase.from('store_settings').upsert([
     { key: 'live_active', value: 'true', updated_at: now },
-    { key: 'live_room_url', value: room.url, updated_at: now },
+    { key: 'live_youtube_id', value: youtubeId, updated_at: now },
     { key: 'live_started_at', value: now, updated_at: now },
   ], { onConflict: 'key' })
 
-  return NextResponse.json({ room_url: room.url, host_token: hostToken })
+  return NextResponse.json({ ok: true, youtube_id: youtubeId })
 }
 
 // DELETE — termina la transmisión
@@ -97,7 +69,7 @@ export async function DELETE() {
   const now = new Date().toISOString()
   await supabase.from('store_settings').upsert([
     { key: 'live_active', value: 'false', updated_at: now },
-    { key: 'live_room_url', value: '', updated_at: now },
+    { key: 'live_youtube_id', value: '', updated_at: now },
   ], { onConflict: 'key' })
 
   return NextResponse.json({ ok: true })

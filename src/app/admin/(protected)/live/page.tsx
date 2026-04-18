@@ -1,19 +1,19 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Radio, Copy, Share2, StopCircle, ExternalLink } from 'lucide-react'
+import { Radio, Copy, Share2, StopCircle, ExternalLink, Youtube } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface LiveState {
   active: boolean
-  room_url: string | null
+  youtube_id: string | null
   started_at: string | null
-  host_token?: string | null
 }
 
 export default function AdminLivePage() {
-  const [live, setLive] = useState<LiveState>({ active: false, room_url: null, started_at: null })
+  const [live, setLive] = useState<LiveState>({ active: false, youtube_id: null, started_at: null })
   const [loading, setLoading] = useState(true)
+  const [youtubeUrl, setYoutubeUrl] = useState('')
   const [starting, setStarting] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [elapsed, setElapsed] = useState('')
@@ -24,13 +24,12 @@ export default function AdminLivePage() {
   const fetchStatus = useCallback(async () => {
     const res = await fetch('/api/live')
     const data = await res.json()
-    setLive((prev) => ({ ...data, host_token: prev.host_token }))
+    setLive(data)
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchStatus() }, [fetchStatus])
 
-  // Contador de tiempo en vivo
   useEffect(() => {
     if (!live.active || !live.started_at) { setElapsed(''); return }
     const update = () => {
@@ -46,16 +45,23 @@ export default function AdminLivePage() {
   }, [live.active, live.started_at])
 
   const handleStart = async () => {
+    if (!youtubeUrl.trim()) {
+      toast.error('Pega el link de YouTube primero')
+      return
+    }
     setStarting(true)
     try {
-      const res = await fetch('/api/live', { method: 'POST' })
+      const res = await fetch('/api/live', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ youtube_url: youtubeUrl }),
+      })
+      const data = await res.json()
       if (!res.ok) {
-        const err = await res.json()
-        toast.error(err.error ?? 'Error al iniciar')
+        toast.error(data.error ?? 'URL no válida')
         return
       }
-      const { room_url, host_token } = await res.json()
-      setLive({ active: true, room_url, host_token, started_at: new Date().toISOString() })
+      setLive({ active: true, youtube_id: data.youtube_id, started_at: new Date().toISOString() })
       toast.success('¡Transmisión iniciada!')
     } catch {
       toast.error('Error al iniciar la transmisión')
@@ -69,10 +75,11 @@ export default function AdminLivePage() {
     setStopping(true)
     try {
       await fetch('/api/live', { method: 'DELETE' })
-      setLive({ active: false, room_url: null, started_at: null, host_token: null })
+      setLive({ active: false, youtube_id: null, started_at: null })
+      setYoutubeUrl('')
       toast.success('Transmisión terminada')
     } catch {
-      toast.error('Error al terminar la transmisión')
+      toast.error('Error al terminar')
     } finally {
       setStopping(false)
     }
@@ -85,15 +92,10 @@ export default function AdminLivePage() {
 
   const shareWhatsApp = () => {
     const text = encodeURIComponent(
-      `🔴 ¡Estamos en vivo! Únete a nuestra transmisión para ver los mejores productos y ofertas en tiempo real.\n\n👉 ${publicLiveUrl}`
+      `🔴 ¡Estamos en vivo! Únete para ver productos y ofertas en tiempo real.\n\n👉 ${publicLiveUrl}`
     )
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
-
-  // URL del iframe para el anfitrión (con token)
-  const hostIframeUrl = live.room_url && live.host_token
-    ? `${live.room_url}?t=${live.host_token}`
-    : live.room_url ?? undefined
 
   if (loading) {
     return (
@@ -111,27 +113,51 @@ export default function AdminLivePage() {
           Transmisión en vivo
         </h1>
         <p className="text-gray-500 text-sm mt-1">
-          Vende tus productos en tiempo real. Los clientes se unen desde un link.
+          Transmite desde YouTube y comparte el link con tus clientes.
         </p>
       </div>
 
       {!live.active ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center max-w-lg mx-auto">
-          <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Radio className="w-12 h-12 text-red-400" />
+        <div className="space-y-6 max-w-2xl">
+          {/* Instrucciones */}
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-6">
+            <h2 className="font-semibold text-red-800 flex items-center gap-2 mb-3">
+              <Youtube className="w-5 h-5" />
+              Cómo iniciar tu transmisión
+            </h2>
+            <ol className="space-y-2 text-sm text-red-700 list-decimal list-inside">
+              <li>Entra a <strong>YouTube Studio</strong> (studio.youtube.com)</li>
+              <li>Haz clic en <strong>"Crear → Iniciar transmisión en directo"</strong></li>
+              <li>Configura tu stream (título, descripción) y haz clic en <strong>"Ir al directo"</strong></li>
+              <li>Copia la URL de la página (ej: youtube.com/watch?v=XXXX)</li>
+              <li>Pégala abajo y haz clic en <strong>"Publicar transmisión"</strong></li>
+            </ol>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">No hay transmisión activa</h2>
-          <p className="text-gray-500 text-sm mb-8">
-            Al iniciar, el navegador pedirá acceso a tu cámara y micrófono. Comparte el link con tus clientes por WhatsApp.
-          </p>
-          <button
-            onClick={handleStart}
-            disabled={starting}
-            className="w-full flex items-center justify-center gap-3 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-bold py-4 px-8 rounded-2xl text-lg transition-colors shadow-lg shadow-red-200"
-          >
-            <Radio className="w-6 h-6" />
-            {starting ? 'Iniciando...' : 'Iniciar transmisión'}
-          </button>
+
+          {/* Input de URL */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Link de YouTube Live
+            </label>
+            <input
+              type="url"
+              value={youtubeUrl}
+              onChange={(e) => setYoutubeUrl(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-red-400"
+            />
+            <p className="text-xs text-gray-400 mt-2">
+              También acepta: youtu.be/XXXX o youtube.com/live/XXXX
+            </p>
+            <button
+              onClick={handleStart}
+              disabled={starting || !youtubeUrl.trim()}
+              className="mt-4 w-full flex items-center justify-center gap-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl text-lg transition-colors"
+            >
+              <Radio className="w-6 h-6" />
+              {starting ? 'Publicando...' : 'Publicar transmisión'}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -144,19 +170,19 @@ export default function AdminLivePage() {
                 <span className="bg-red-700 px-3 py-1 rounded-full text-sm font-mono">{elapsed}</span>
               )}
             </div>
+            <Youtube className="w-6 h-6 opacity-80" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Daily.co iframe */}
-            <div className="lg:col-span-2 bg-black rounded-2xl overflow-hidden" style={{ height: '480px' }}>
-              {hostIframeUrl && (
-                <iframe
-                  src={hostIframeUrl}
-                  allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
-                  className="w-full h-full border-0"
-                  title="Transmisión en vivo"
-                />
-              )}
+            {/* Preview del stream */}
+            <div className="lg:col-span-2 bg-black rounded-2xl overflow-hidden" style={{ height: '400px' }}>
+              <iframe
+                src={`https://www.youtube.com/embed/${live.youtube_id}?autoplay=1&rel=0`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="w-full h-full border-0"
+                title="Stream en vivo"
+              />
             </div>
 
             {/* Panel lateral */}
