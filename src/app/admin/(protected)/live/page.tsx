@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Radio, Copy, Share2, StopCircle, ExternalLink, Youtube } from 'lucide-react'
+import { Radio, Copy, Share2, StopCircle, ExternalLink, PlayCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface LiveState {
@@ -13,7 +13,7 @@ interface LiveState {
 export default function AdminLivePage() {
   const [live, setLive] = useState<LiveState>({ active: false, youtube_id: null, started_at: null })
   const [loading, setLoading] = useState(true)
-  const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [youtubeUrl, setPlayCircleUrl] = useState('')
   const [starting, setStarting] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [elapsed, setElapsed] = useState('')
@@ -76,7 +76,7 @@ export default function AdminLivePage() {
     try {
       await fetch('/api/live', { method: 'DELETE' })
       setLive({ active: false, youtube_id: null, started_at: null })
-      setYoutubeUrl('')
+      setPlayCircleUrl('')
       toast.success('Transmisión terminada')
     } catch {
       toast.error('Error al terminar')
@@ -122,7 +122,7 @@ export default function AdminLivePage() {
           {/* Instrucciones */}
           <div className="bg-red-50 border border-red-100 rounded-2xl p-6">
             <h2 className="font-semibold text-red-800 flex items-center gap-2 mb-3">
-              <Youtube className="w-5 h-5" />
+              <PlayCircle className="w-5 h-5" />
               Cómo iniciar tu transmisión
             </h2>
             <ol className="space-y-2 text-sm text-red-700 list-decimal list-inside">
@@ -142,7 +142,7 @@ export default function AdminLivePage() {
             <input
               type="url"
               value={youtubeUrl}
-              onChange={(e) => setYoutubeUrl(e.target.value)}
+              onChange={(e) => setPlayCircleUrl(e.target.value)}
               placeholder="https://www.youtube.com/watch?v=..."
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-red-400"
             />
@@ -170,7 +170,7 @@ export default function AdminLivePage() {
                 <span className="bg-red-700 px-3 py-1 rounded-full text-sm font-mono">{elapsed}</span>
               )}
             </div>
-            <Youtube className="w-6 h-6 opacity-80" />
+            <PlayCircle className="w-6 h-6 opacity-80" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
