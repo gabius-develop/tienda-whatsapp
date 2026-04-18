@@ -1,20 +1,18 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Radio, Copy, Share2, StopCircle, ExternalLink } from 'lucide-react'
-import dynamic from 'next/dynamic'
 import toast from 'react-hot-toast'
-
-const JitsiEmbed = dynamic(() => import('@/components/live/JitsiEmbed'), { ssr: false })
 
 interface LiveState {
   active: boolean
-  room: string | null
+  room_url: string | null
   started_at: string | null
+  host_token?: string | null
 }
 
 export default function AdminLivePage() {
-  const [live, setLive] = useState<LiveState>({ active: false, room: null, started_at: null })
+  const [live, setLive] = useState<LiveState>({ active: false, room_url: null, started_at: null })
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState(false)
   const [stopping, setStopping] = useState(false)
@@ -26,7 +24,7 @@ export default function AdminLivePage() {
   const fetchStatus = useCallback(async () => {
     const res = await fetch('/api/live')
     const data = await res.json()
-    setLive(data)
+    setLive((prev) => ({ ...data, host_token: prev.host_token }))
     setLoading(false)
   }, [])
 
@@ -47,22 +45,17 @@ export default function AdminLivePage() {
     return () => clearInterval(t)
   }, [live.active, live.started_at])
 
-  const generateRoomName = () => {
-    const id = Math.random().toString(36).substring(2, 10)
-    return `tienda-en-vivo-${id}`
-  }
-
   const handleStart = async () => {
     setStarting(true)
-    const room = generateRoomName()
     try {
-      const res = await fetch('/api/live', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room }),
-      })
-      if (!res.ok) throw new Error()
-      setLive({ active: true, room, started_at: new Date().toISOString() })
+      const res = await fetch('/api/live', { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(err.error ?? 'Error al iniciar')
+        return
+      }
+      const { room_url, host_token } = await res.json()
+      setLive({ active: true, room_url, host_token, started_at: new Date().toISOString() })
       toast.success('¡Transmisión iniciada!')
     } catch {
       toast.error('Error al iniciar la transmisión')
@@ -76,7 +69,7 @@ export default function AdminLivePage() {
     setStopping(true)
     try {
       await fetch('/api/live', { method: 'DELETE' })
-      setLive({ active: false, room: null, started_at: null })
+      setLive({ active: false, room_url: null, started_at: null, host_token: null })
       toast.success('Transmisión terminada')
     } catch {
       toast.error('Error al terminar la transmisión')
@@ -96,6 +89,11 @@ export default function AdminLivePage() {
     )
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
+
+  // URL del iframe para el anfitrión (con token)
+  const hostIframeUrl = live.room_url && live.host_token
+    ? `${live.room_url}?t=${live.host_token}`
+    : live.room_url ?? undefined
 
   if (loading) {
     return (
@@ -149,13 +147,16 @@ export default function AdminLivePage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Jitsi via External API */}
+            {/* Daily.co iframe */}
             <div className="lg:col-span-2 bg-black rounded-2xl overflow-hidden" style={{ height: '480px' }}>
-              <JitsiEmbed
-                room={live.room!}
-                displayName="Vendedor"
-                isHost={true}
-              />
+              {hostIframeUrl && (
+                <iframe
+                  src={hostIframeUrl}
+                  allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
+                  className="w-full h-full border-0"
+                  title="Transmisión en vivo"
+                />
+              )}
             </div>
 
             {/* Panel lateral */}

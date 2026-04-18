@@ -3,18 +3,15 @@
 import { useEffect, useState } from 'react'
 import { Radio, ShoppingCart, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import { Product } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import toast from 'react-hot-toast'
 
-const JitsiEmbed = dynamic(() => import('@/components/live/JitsiEmbed'), { ssr: false })
-
 interface LiveState {
   active: boolean
-  room: string | null
+  room_url: string | null
   started_at: string | null
 }
 
@@ -29,7 +26,6 @@ export default function LivePage() {
     fetch('/api/products').then(r => r.json()).then((data: Product[]) =>
       setProducts(data.slice(0, 8))
     )
-
     const interval = setInterval(() => {
       fetch('/api/live').then(r => r.json()).then(setLive)
     }, 30_000)
@@ -59,6 +55,11 @@ export default function LivePage() {
     const msg = `¡Hola! Vi "${product.name}" en la transmisión en vivo. ¿Puedes darme más información?`
     window.location.href = getWhatsAppUrl(process.env.NEXT_PUBLIC_WHATSAPP_PHONE!, msg)
   }
+
+  // Viewer URL: sin token, con cámara y micrófono apagados por defecto
+  const viewerIframeUrl = live?.room_url
+    ? `${live.room_url}?startVideoOff=1&startAudioOff=1`
+    : null
 
   if (!live) {
     return (
@@ -107,18 +108,19 @@ export default function LivePage() {
         </Link>
       </header>
 
-      {/* Cuerpo principal — ocupa el resto de la pantalla */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
            className="lg:flex-row">
 
-        {/* Stream — altura fija en móvil, flex en desktop */}
-        <div className="bg-black lg:flex-1" style={{ height: '55vw', maxHeight: '70vh' }}
-             id="live-stream-container">
-          <JitsiEmbed
-            room={live.room!}
-            displayName="Cliente"
-            isHost={false}
-          />
+        {/* Stream */}
+        <div className="bg-black lg:flex-1" style={{ height: '55vw', maxHeight: '70vh' }}>
+          {viewerIframeUrl && (
+            <iframe
+              src={viewerIframeUrl}
+              allow="camera; microphone; fullscreen; display-capture; autoplay"
+              className="w-full h-full border-0"
+              title="Transmisión en vivo"
+            />
+          )}
         </div>
 
         {/* Panel de productos */}

@@ -154,3 +154,219 @@ Para cambiar entre cuentas en el futuro
   - Debes entrar al panel oscuro de configuración
   - Cambia el nombre de la tienda y el mensaje de bienvenida → Guardar
   - Regresa a la tienda y verifica que cambió
+
+
+  ------------------------------------------------------------------------------------------------------------------------------------
+  Tienda WhatsApp — Guía completa de instalación y despliegue
+
+  ¿Qué es este proyecto?
+
+  Una tienda online donde los clientes pueden ver productos, agregar al carrito y pagar por WhatsApp o MercadoPago. Incluye:
+
+  ┌────────────────┬─────────────┬────────────────────┐
+  │     Panel      │     URL     │     Para quién     │
+  ├────────────────┼─────────────┼────────────────────┤
+  │ Tienda pública │ /           │ Clientes           │
+  ├────────────────┼─────────────┼────────────────────┤
+  │ Admin          │ /admin      │ Dueño de la tienda │
+  ├────────────────┼─────────────┼────────────────────┤
+  │ Super Admin    │ /superadmin │ Desarrollador      │
+  └────────────────┴─────────────┴────────────────────┘
+
+  Stack: Next.js 16 · TypeScript · Tailwind CSS · Supabase · Zustand · MercadoPago SDK v2
+
+  ---
+  PARTE 1 — Clonar el proyecto
+
+  git clone https://github.com/TU_USUARIO/tiendawhatsapp.git
+  cd tiendawhatsapp
+  npm install
+
+  ---
+  PARTE 2 — Configurar Supabase (base de datos)
+
+  2.1 Crear proyecto en Supabase
+
+  1. Ve a https://supabase.com → New project
+  2. Elige nombre, contraseña de DB y región (ej: South America - São Paulo)
+  3. Espera ~2 minutos a que el proyecto esté listo
+
+  2.2 Ejecutar el SQL de la base de datos
+
+  Ve a SQL Editor en Supabase y ejecuta los 3 archivos en este orden:
+
+  Primero — supabase/schema.sql
+  (crea tablas: products, orders, order_items, storage bucket e imágenes)
+
+  Segundo — supabase/promotions.sql
+  (crea tabla: promotions)
+
+  Tercero — supabase/settings.sql
+  (crea tabla: store_settings con valores por defecto)
+
+  2.3 Obtener las credenciales
+
+  En Supabase → Settings → API:
+  - Copia Project URL → será NEXT_PUBLIC_SUPABASE_URL
+  - Copia anon public key → será NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  2.4 Crear usuario admin de la tienda
+
+  En Supabase → Authentication → Users → Add user:
+  - Email: el correo del dueño de la tienda (ej: admin@mitienda.com)
+  - Password: una contraseña segura
+  - Marca "Auto Confirm User"
+
+  Este usuario es quien accede al panel /admin para gestionar productos, pedidos y promociones.
+
+  ---
+  PARTE 3 — Variables de entorno locales
+
+  Crea el archivo .env.local en la raíz del proyecto:
+
+  # Supabase
+  NEXT_PUBLIC_SUPABASE_URL=https://XXXXXXXX.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+
+  # WhatsApp Business (con código de país, sin + ni espacios)
+  # México: 521 + 10 dígitos → 5217471234567
+  NEXT_PUBLIC_WHATSAPP_PHONE=5217471234567
+
+  # MercadoPago (obtener en mercadopago.com.mx → Credenciales)
+  # Para pruebas usa el token TEST-, para producción el token real
+  MERCADOPAGO_ACCESS_TOKEN=TEST-XXXXXXXXXXXXXXXXXXXX
+
+  # URL pública de la app (en local usa localhost)
+  NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+  # Contraseña del Super Admin (tú como desarrollador)
+  SUPERADMIN_PASSWORD=elige-una-contraseña-segura
+
+  Correr localmente
+
+  npm run dev
+
+  Abre http://localhost:3000
+
+  ---
+  PARTE 4 — Despliegue en Railway
+
+  4.1 Subir el código a GitHub
+
+  git add .
+  git commit -m "initial commit"
+  git push origin main
+
+  4.2 Crear proyecto en Railway
+
+  1. Ve a https://railway.app → New Project → Deploy from GitHub repo
+  2. Selecciona tu repositorio
+  3. Railway detecta automáticamente que es Next.js
+
+  4.3 Agregar variables de entorno en Railway
+
+  Ve a tu proyecto → Variables → agrega todas estas:
+
+  ┌───────────────────────────────┬───────────────────────────────────────────────────────────────┐
+  │           Variable            │                             Valor                             │
+  ├───────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ NEXT_PUBLIC_SUPABASE_URL      │ URL de tu proyecto Supabase                                   │
+  ├───────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ NEXT_PUBLIC_SUPABASE_ANON_KEY │ Anon key de Supabase                                          │
+  ├───────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ NEXT_PUBLIC_WHATSAPP_PHONE    │ Número WhatsApp (ej: 5217471234567)                           │
+  ├───────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ MERCADOPAGO_ACCESS_TOKEN      │ Token de MercadoPago                                          │
+  ├───────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ NEXT_PUBLIC_APP_URL           │ URL que te da Railway (ej: https://tienda-xxx.up.railway.app) │
+  ├───────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ SUPERADMIN_PASSWORD           │ Contraseña que tú elijas para el panel de desarrollador       │
+  └───────────────────────────────┴───────────────────────────────────────────────────────────────┘
+
+  ▎ Importante: Cada vez que cambies una variable, Railway hace redeploy automático.
+
+  4.4 Configurar dominio en Railway
+
+  En Railway → tu servicio → Settings → Networking → Generate Domain
+  Copia esa URL y ponla en NEXT_PUBLIC_APP_URL.
+
+  ---
+  PARTE 5 — Configurar MercadoPago
+
+  Para pruebas (sandbox)
+
+  1. Ve a https://mercadopago.com.mx → inicia sesión
+  2. Panel de desarrollador → Credenciales de prueba
+  3. Copia el Access Token que empieza con TEST-
+  4. Úsalo en MERCADOPAGO_ACCESS_TOKEN
+
+  Para producción (cobros reales)
+
+  1. En MercadoPago → Credenciales de producción
+  2. Copia el Access Token real (no empieza con TEST-)
+  3. Actualiza MERCADOPAGO_ACCESS_TOKEN en Railway
+
+  ---
+  PARTE 6 — Accesos a los paneles
+
+  Panel Admin /admin
+
+  - URL: https://tu-dominio.railway.app/admin/login
+  - Email y contraseña: los del usuario creado en Paso 2.4
+  - Funciones: agregar/editar productos, ver pedidos, crear promociones, ver estadísticas
+
+  Panel Super Admin /superadmin
+
+  - URL: https://tu-dominio.railway.app/superadmin/login
+  - Contraseña: la que pusiste en SUPERADMIN_PASSWORD
+  - Funciones: cambiar nombre de la tienda, título de bienvenida, texto del footer
+
+  ---
+  PARTE 7 — Flujos de compra
+
+  Cliente ve productos → Agrega al carrito → Llena datos (nombre, teléfono, dirección)
+      │
+      ├── "Solo por WhatsApp" → Se abre WhatsApp con el pedido formateado
+      │
+      └── "Pagar con MercadoPago" → Redirige a MP → Paga → Pantalla de éxito
+                                                             → Cuenta regresiva 5s
+                                                             → Se abre WhatsApp
+                                                                con confirmación de pago
+
+  ---
+  PARTE 8 — Para un nuevo cliente (checklist)
+
+  Al montar esto para un cliente nuevo, debes:
+
+  - Crear nuevo proyecto en Supabase (pasos 2.1 a 2.4)
+  - Ejecutar los 3 archivos SQL
+  - Crear el usuario admin con el email del cliente
+  - Crear nuevo proyecto en Railway conectado al repo
+  - Agregar las 6 variables de entorno
+  - Cambiar NEXT_PUBLIC_WHATSAPP_PHONE al número del cliente
+  - Agregar el token de MercadoPago del cliente
+  - Entrar al Super Admin y personalizar: nombre de tienda, bienvenida, footer
+  - Entrar al Admin y cargar los primeros productos con fotos
+
+  ---
+  Resumen de archivos importantes
+
+  ┌──────────────────────────────────────┬────────────────────────────────────┐
+  │               Archivo                │              Qué hace              │
+  ├──────────────────────────────────────┼────────────────────────────────────┤
+  │ supabase/schema.sql                  │ Tablas principales + RLS           │
+  ├──────────────────────────────────────┼────────────────────────────────────┤
+  │ supabase/promotions.sql              │ Tabla de promociones               │
+  ├──────────────────────────────────────┼────────────────────────────────────┤
+  │ supabase/settings.sql                │ Configuración de la tienda         │
+  ├──────────────────────────────────────┼────────────────────────────────────┤
+  │ src/middleware.ts                    │ Protege rutas /admin y /superadmin │
+  ├──────────────────────────────────────┼────────────────────────────────────┤
+  │ src/app/api/payments/create/route.ts │ Crea preferencia MercadoPago       │
+  ├──────────────────────────────────────┼────────────────────────────────────┤
+  │ src/app/api/superadmin/auth/route.ts │ Login del superadmin (cookie)      │
+  ├──────────────────────────────────────┼────────────────────────────────────┤
+  │ nixpacks.toml                        │ Fuerza Node 20 en Railway          │
+  ├──────────────────────────────────────┼────────────────────────────────────┤
+  │ .env.local.example                   │ Plantilla de variables de entorno  │
+  └──────────────────────────────────────┴────────────────────────────────────┘
