@@ -59,7 +59,7 @@ export default function CheckoutForm() {
         subtotal: item.product.price * item.quantity,
       }))
 
-      await fetch('/api/orders', {
+      const orderRes = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -70,6 +70,13 @@ export default function CheckoutForm() {
           total: totalPrice(),
         }),
       })
+
+      if (!orderRes.ok) {
+        const err = await orderRes.json()
+        toast.error(err.error ?? 'Error al procesar el pedido')
+        setLoading(null)
+        return
+      }
 
       const message = buildWhatsAppMessage({
         customerName: data.customerName,
