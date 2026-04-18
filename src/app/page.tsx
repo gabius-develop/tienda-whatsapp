@@ -11,6 +11,7 @@ import PromotionsBanner from '@/components/store/PromotionsBanner'
 import LiveBanner from '@/components/store/LiveBanner'
 import FloatingCart from '@/components/store/FloatingCart'
 import { Store } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 export default function StorePage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -41,6 +42,20 @@ export default function StorePage() {
 
   useEffect(() => {
     fetchProducts()
+  }, [fetchProducts])
+
+  // Suscripción en tiempo real a cambios en productos
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('store-products-realtime')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        () => { fetchProducts() }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [fetchProducts])
 
   useEffect(() => {

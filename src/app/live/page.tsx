@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Radio, ShoppingCart, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
 import { Product } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
+import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 
 interface LiveState {
@@ -21,16 +22,36 @@ export default function LivePage() {
   const [elapsed, setElapsed] = useState('')
   const addItem = useCartStore((s) => s.addItem)
 
-  useEffect(() => {
-    fetch('/api/live').then(r => r.json()).then(setLive)
+  const fetchProducts = useCallback(() => {
     fetch('/api/products').then(r => r.json()).then((data: Product[]) =>
       setProducts(data.slice(0, 8))
     )
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/live').then(r => r.json()).then(setLive)
+    fetchProducts()
+
+    // Polling del estado del live cada 30s
     const interval = setInterval(() => {
       fetch('/api/live').then(r => r.json()).then(setLive)
     }, 30_000)
-    return () => clearInterval(interval)
-  }, [])
+
+    // Realtime para productos
+    const supabase = createClient()
+    const channel = supabase
+      .channel('live-products-realtime')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        () => { fetchProducts() }
+      )
+      .subscribe()
+
+    return () => {
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
+  }, [fetchProducts])
 
   useEffect(() => {
     if (!live?.active || !live.started_at) { setElapsed(''); return }
