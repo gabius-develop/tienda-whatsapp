@@ -109,7 +109,7 @@ export default function LivePage() {
         {/* YouTube embed */}
         <div className="bg-black lg:flex-1" style={{ height: '56.25vw', maxHeight: '72vh' }}>
           <iframe
-            src={`https://www.youtube.com/embed/${live.youtube_id}?autoplay=1&rel=0`}
+            src={`https://www.youtube.com/embed/${live.youtube_id}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&color=white`}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
             className="w-full h-full border-0"

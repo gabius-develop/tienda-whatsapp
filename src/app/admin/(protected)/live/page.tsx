@@ -128,7 +128,8 @@ export default function AdminLivePage() {
             <ol className="space-y-2 text-sm text-red-700 list-decimal list-inside">
               <li>Entra a <strong>YouTube Studio</strong> (studio.youtube.com)</li>
               <li>Haz clic en <strong>"Crear → Iniciar transmisión en directo"</strong></li>
-              <li>Configura tu stream (título, descripción) y haz clic en <strong>"Ir al directo"</strong></li>
+              <li>En <strong>"Más opciones" → "Latencia"</strong> → selecciona <strong>"Ultra baja latencia"</strong> (reduce el delay a ~2s)</li>
+              <li>Configura tu stream y haz clic en <strong>"Ir al directo"</strong></li>
               <li>Copia la URL de la página (ej: youtube.com/watch?v=XXXX)</li>
               <li>Pégala abajo y haz clic en <strong>"Publicar transmisión"</strong></li>
             </ol>
@@ -177,7 +178,7 @@ export default function AdminLivePage() {
             {/* Preview del stream */}
             <div className="lg:col-span-2 bg-black rounded-2xl overflow-hidden" style={{ height: '400px' }}>
               <iframe
-                src={`https://www.youtube.com/embed/${live.youtube_id}?autoplay=1&rel=0`}
+                src={`https://www.youtube.com/embed/${live.youtube_id}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&color=white`}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
                 className="w-full h-full border-0"
