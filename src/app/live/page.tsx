@@ -90,7 +90,7 @@ export default function LivePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="bg-gray-950" style={{ height: '100dvh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <header className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -107,9 +107,13 @@ export default function LivePage() {
         </Link>
       </header>
 
-      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
-        {/* Stream principal */}
-        <div className="flex-1 bg-black min-h-[320px]">
+      {/* Cuerpo principal — ocupa el resto de la pantalla */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+           className="lg:flex-row">
+
+        {/* Stream — altura fija en móvil, flex en desktop */}
+        <div className="bg-black lg:flex-1" style={{ height: '55vw', maxHeight: '70vh' }}
+             id="live-stream-container">
           <JitsiEmbed
             room={live.room!}
             displayName="Cliente"
@@ -118,7 +122,8 @@ export default function LivePage() {
         </div>
 
         {/* Panel de productos */}
-        <aside className="w-full lg:w-80 bg-gray-900 border-t lg:border-t-0 lg:border-l border-gray-800 flex flex-col">
+        <aside className="flex-1 lg:flex-none lg:w-80 bg-gray-900 border-t lg:border-t-0 lg:border-l border-gray-800"
+               style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div className="p-4 border-b border-gray-800 flex-shrink-0">
             <h2 className="text-white font-semibold flex items-center gap-2">
               <ShoppingCart className="w-5 h-5 text-green-400" />
@@ -127,7 +132,7 @@ export default function LivePage() {
             <p className="text-gray-500 text-xs mt-1">Compra mientras ves el live</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div className="overflow-y-auto p-3 space-y-3" style={{ flex: 1 }}>
             {products.map((product) => (
               <div key={product.id} className="bg-gray-800 rounded-xl p-3 flex gap-3">
                 {product.image_url ? (

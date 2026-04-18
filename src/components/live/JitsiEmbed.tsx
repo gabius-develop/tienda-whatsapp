@@ -94,5 +94,5 @@ export default function JitsiEmbed({ room, displayName, isHost = false, onLeave 
     }
   }, [room, displayName, isHost, onLeave])
 
-  return <div ref={containerRef} className="w-full h-full" />
+  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }
