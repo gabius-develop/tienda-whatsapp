@@ -26,14 +26,54 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
+  const newStatus: string = body.status
 
+  // Obtener el estado actual del pedido antes de cambiar
+  const { data: currentOrder } = await supabase
+    .from('orders')
+    .select('status')
+    .eq('id', id)
+    .single()
+
+  // Actualizar el estado del pedido
   const { data, error } = await supabase
     .from('orders')
-    .update({ status: body.status })
+    .update({ status: newStatus })
     .eq('id', id)
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Si se cancela un pedido que NO estaba ya cancelado → restaurar stock
+  const wasCancelled = currentOrder?.status === 'cancelled'
+  if (newStatus === 'cancelled' && !wasCancelled) {
+    const { data: orderItems } = await supabase
+      .from('order_items')
+      .select('product_id, quantity')
+      .eq('order_id', id)
+
+    if (orderItems) {
+      for (const item of orderItems) {
+        if (!item.product_id) continue
+        const { data: product } = await supabase
+          .from('products')
+          .select('stock')
+          .eq('id', item.product_id)
+          .single()
+
+        if (product) {
+          await supabase
+            .from('products')
+            .update({
+              stock: product.stock + item.quantity,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', item.product_id)
+        }
+      }
+    }
+  }
+
   return NextResponse.json(data)
 }
