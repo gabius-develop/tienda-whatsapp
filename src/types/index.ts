@@ -4,6 +4,7 @@ export interface Product {
   description: string | null
   price: number
   image_url: string | null
+  images: string[] | null
   category: string | null
   stock: number
   is_active: boolean
@@ -96,4 +97,5 @@ export interface ProductFormData {
   stock: number
   is_active: boolean
   image_url: string
+  images: string[]
 }

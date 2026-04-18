@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowLeft, ShoppingCart, Package } from 'lucide-react'
 import { Product } from '@/types'
@@ -11,6 +10,7 @@ import { formatCurrency } from '@/lib/utils'
 import Button from '@/components/ui/Button'
 import CartButton from '@/components/store/CartButton'
 import Badge from '@/components/ui/Badge'
+import ImageCarousel from '@/components/store/ImageCarousel'
 import toast from 'react-hot-toast'
 
 export default function ProductPage() {
@@ -71,18 +71,17 @@ export default function ProductPage() {
       <main className="max-w-4xl mx-auto px-4 py-8">
         <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2">
-            <div className="relative aspect-square bg-gray-50">
-              {product.image_url ? (
-                <Image
-                  src={product.image_url}
-                  alt={product.name}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full text-8xl">📦</div>
-              )}
+            <div className="bg-gray-50">
+              <ImageCarousel
+                images={
+                  product.images && product.images.length > 0
+                    ? product.images
+                    : product.image_url
+                    ? [product.image_url]
+                    : []
+                }
+                alt={product.name}
+              />
             </div>
 
             <div className="p-8 flex flex-col justify-between">
