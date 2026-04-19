@@ -46,17 +46,44 @@ export default function CompetenciaPage() {
   const [site, setSite] = useState('all')
   const [onlyDeals, setOnlyDeals] = useState(false)
 
+  const [error, setError] = useState<string | null>(null)
+
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const params = new URLSearchParams()
-    if (site !== 'all') params.set('site', site)
-    if (search) params.set('search', search)
-    if (onlyDeals) params.set('deals', 'true')
+    setError(null)
+    try {
+      const params = new URLSearchParams()
+      if (site !== 'all') params.set('site', site)
+      if (search) params.set('search', search)
+      if (onlyDeals) params.set('deals', 'true')
 
-    const res = await fetch(`/api/admin/competencia?${params}`)
-    const data = await res.json()
-    setProducts(Array.isArray(data) ? data : [])
-    setLoading(false)
+      const res = await fetch(`/api/admin/competencia?${params}`)
+      const text = await res.text()
+
+      let data: unknown
+      try {
+        data = JSON.parse(text)
+      } catch {
+        console.error('Respuesta no-JSON:', text.slice(0, 200))
+        setError(`Error del servidor (${res.status})`)
+        setProducts([])
+        return
+      }
+
+      if (!res.ok) {
+        const msg = (data as { error?: string })?.error ?? `Error ${res.status}`
+        setError(msg)
+        setProducts([])
+        return
+      }
+
+      setProducts(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error de red')
+      setProducts([])
+    } finally {
+      setLoading(false)
+    }
   }, [site, search, onlyDeals])
 
   useEffect(() => {
@@ -152,6 +179,17 @@ export default function CompetenciaPage() {
         {loading ? (
           <div className="p-12 flex justify-center">
             <div className="animate-spin w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full" />
+          </div>
+        ) : error ? (
+          <div className="p-12 text-center">
+            <p className="text-red-500 font-medium mb-1">Error al cargar datos</p>
+            <p className="text-gray-400 text-sm">{error}</p>
+            <button
+              onClick={fetchData}
+              className="mt-4 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+            >
+              Reintentar
+            </button>
           </div>
         ) : products.length === 0 ? (
           <div className="p-12 text-center">

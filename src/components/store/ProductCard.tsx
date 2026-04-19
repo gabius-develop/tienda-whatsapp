@@ -42,8 +42,8 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   return (
     <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col">
-      {/* Imagen — proporción cuadrada, dominante */}
-      <Link href={`/product/${product.id}`} className="relative block aspect-square bg-gray-50">
+      {/* Imagen — más alta en móvil para llenar la tarjeta */}
+      <Link href={`/product/${product.id}`} className="relative block aspect-[3/4] sm:aspect-square bg-gray-50">
         {product.image_url ? (
           <Image
             src={product.image_url}
@@ -75,11 +75,11 @@ export default function ProductCard({ product }: ProductCardProps) {
       </Link>
 
       {/* Info */}
-      <div className="p-3 flex flex-col flex-1">
+      <div className="p-2.5 sm:p-3 flex flex-col flex-1">
         <p className="text-xs font-semibold text-gray-800 line-clamp-2 mb-1 leading-snug">{product.name}</p>
 
         <div className="flex items-baseline gap-1 flex-wrap mb-2">
-          <span className="text-base font-bold text-green-600">{formatCurrency(product.price)}</span>
+          <span className="text-sm sm:text-base font-bold text-green-600">{formatCurrency(product.price)}</span>
           {product.was_price && product.was_price > product.price && (
             <span className="text-xs text-gray-400 line-through">{formatCurrency(product.was_price)}</span>
           )}
@@ -87,7 +87,6 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         {/* Acciones */}
         <div className="flex gap-1.5 mt-auto">
-          {/* Botón agregar — toma todo el espacio disponible */}
           <button
             onClick={handleAddToCart}
             disabled={product.stock === 0}
@@ -103,7 +102,6 @@ export default function ProductCard({ product }: ProductCardProps) {
             {added ? '¡Listo!' : 'Agregar'}
           </button>
 
-          {/* Compartir */}
           <button
             onClick={handleShare}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 active:bg-gray-100 active:scale-95 transition-all"

@@ -107,11 +107,11 @@ export default function StorePage() {
       )}
 
       {/* ── GRID DE PRODUCTOS ── */}
-      <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 pb-32 sm:pb-10">
+      <main className="max-w-6xl mx-auto px-1.5 sm:px-4 py-2 sm:py-4 pb-32 sm:pb-10">
         {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl h-64 animate-pulse border border-gray-100" />
+              <div key={i} className="bg-white rounded-2xl h-72 animate-pulse border border-gray-100" />
             ))}
           </div>
         ) : products.length === 0 ? (
@@ -121,7 +121,7 @@ export default function StorePage() {
             <p className="text-gray-400 text-sm">Vuelve pronto, estamos agregando más.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-4">
             {products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
