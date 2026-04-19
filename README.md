@@ -1,6 +1,6 @@
 # Tienda WhatsApp
 
-Tienda online donde los clientes pueden ver productos, agregar al carrito y pagar por **WhatsApp Business** o **MercadoPago**. Incluye panel de administración, transmisiones en vivo y stock en tiempo real.
+Tienda online donde los clientes pueden ver productos, agregar al carrito y pagar por **WhatsApp Business** o **MercadoPago**. Incluye panel de administración, transmisiones en vivo, stock en tiempo real y carrusel de imágenes por producto.
 
 ## Paneles incluidos
 
@@ -42,7 +42,8 @@ Ve a **SQL Editor** y ejecuta los archivos uno por uno:
 1. `supabase/schema.sql` — tablas principales: products, orders, order_items, storage
 2. `supabase/promotions.sql` — tabla de promociones
 3. `supabase/settings.sql` — configuración de la tienda (nombre, bienvenida, footer)
-4. SQL para activar stock en tiempo real:
+4. `supabase/add_product_images.sql` — columna de múltiples imágenes por producto *(solo si el proyecto ya existía antes; instalaciones nuevas no lo necesitan)*
+5. SQL para activar stock en tiempo real:
 
 ```sql
 ALTER TABLE products REPLICA IDENTITY FULL;
@@ -221,7 +222,7 @@ Cliente ve productos → Agrega al carrito → Llena datos (nombre, teléfono, d
 - [ ] Configurar `NEXT_PUBLIC_WHATSAPP_PHONE` con el número del cliente
 - [ ] Agregar token de MercadoPago del cliente
 - [ ] Entrar a Super Admin → personalizar nombre, bienvenida y footer
-- [ ] Entrar a Admin → cargar los primeros productos con fotos
+- [ ] Entrar a Admin → cargar los primeros productos con fotos (hasta 8 imágenes por producto)
 
 ---
 
@@ -232,6 +233,7 @@ Cliente ve productos → Agrega al carrito → Llena datos (nombre, teléfono, d
 | `supabase/schema.sql` | Tablas principales + RLS + Storage |
 | `supabase/promotions.sql` | Tabla de promociones |
 | `supabase/settings.sql` | Configuración de la tienda |
+| `supabase/add_product_images.sql` | Migración: agrega columna `images[]` a productos existentes |
 | `src/middleware.ts` | Protege rutas `/admin` y `/superadmin` |
 | `src/app/api/orders/route.ts` | Crea pedidos y descuenta stock |
 | `src/app/api/orders/[id]/route.ts` | Cambia estado y restaura stock al cancelar |
@@ -265,7 +267,7 @@ src/
 │   │   └── (panel)/settings/page.tsx    ← Configuración de tienda
 │   └── api/                              ← REST API completa
 ├── components/
-│   ├── store/                            ← ProductCard, FloatingCart, LiveBanner...
+│   ├── store/                            ← ProductCard, ImageCarousel, FloatingCart, LiveBanner...
 │   ├── cart/                             ← CheckoutForm
 │   ├── admin/                            ← Sidebar, StatsCard...
 │   └── ui/                              ← Button, Input, Badge...
