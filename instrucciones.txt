@@ -382,3 +382,7 @@ gabrielmxtorres@gmail.com
 
 login super admin desarrollador
 2656226226
+
+npm run scrape
+
+npm start

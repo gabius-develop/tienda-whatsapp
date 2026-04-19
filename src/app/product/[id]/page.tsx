@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, ShoppingCart, Package } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, Package, Share2 } from 'lucide-react'
 import { Product } from '@/types'
 import { useCartStore } from '@/store/cartStore'
 import { formatCurrency } from '@/lib/utils'
@@ -18,6 +18,20 @@ export default function ProductPage() {
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
   const addItem = useCartStore((state) => state.addItem)
+
+  const handleShare = async (p: Product) => {
+    const url = `${window.location.origin}/product/${p.id}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: p.name, text: p.description ?? '', url })
+      } catch {
+        // cancelado por el usuario
+      }
+    } else {
+      await navigator.clipboard.writeText(url)
+      toast.success('Enlace copiado al portapapeles')
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/products/${id}`)
@@ -126,11 +140,21 @@ export default function ProductPage() {
                   <ShoppingCart className="w-5 h-5" />
                   {product.stock === 0 ? 'Agotado' : 'Agregar al carrito'}
                 </Button>
-                <Link href="/cart">
-                  <Button variant="outline" size="lg" className="w-full">
-                    Ver carrito
+                <div className="flex gap-3">
+                  <Link href="/cart" className="flex-1">
+                    <Button variant="outline" size="lg" className="w-full">
+                      Ver carrito
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => handleShare(product)}
+                    title="Compartir producto"
+                  >
+                    <Share2 className="w-5 h-5" />
                   </Button>
-                </Link>
+                </div>
               </div>
             </div>
           </div>

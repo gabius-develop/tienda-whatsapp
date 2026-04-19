@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { ShoppingCart, Eye } from 'lucide-react'
+import { ShoppingCart, Eye, Share2, Check } from 'lucide-react'
 import { Product } from '@/types'
 import { useCartStore } from '@/store/cartStore'
 import { formatCurrency } from '@/lib/utils'
@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+import { useState } from 'react'
 
 interface ProductCardProps {
   product: Product
@@ -16,11 +17,28 @@ interface ProductCardProps {
 
 export default function ProductCard({ product }: ProductCardProps) {
   const addItem = useCartStore((state) => state.addItem)
+  const [added, setAdded] = useState(false)
 
   const handleAddToCart = () => {
     if (product.stock === 0) return
     addItem(product)
     toast.success(`${product.name} agregado al carrito`)
+    setAdded(true)
+    setTimeout(() => setAdded(false), 1500)
+  }
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/product/${product.id}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: product.name, text: product.description ?? '', url })
+      } catch {
+        // el usuario canceló el share, no hacer nada
+      }
+    } else {
+      await navigator.clipboard.writeText(url)
+      toast.success('Enlace copiado al portapapeles')
+    }
   }
 
   return (
@@ -78,17 +96,20 @@ export default function ProductCard({ product }: ProductCardProps) {
           <Button
             onClick={handleAddToCart}
             disabled={product.stock === 0}
-            className="flex-1"
+            className={`flex-1 transition-all duration-200 ${added ? 'bg-green-800 scale-95' : ''}`}
             size="sm"
           >
-            <ShoppingCart className="w-4 h-4" />
-            Agregar
+            {added ? <Check className="w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
+            {added ? '¡Listo!' : 'Agregar'}
           </Button>
           <Link href={`/product/${product.id}`}>
             <Button variant="outline" size="sm">
               <Eye className="w-4 h-4" />
             </Button>
           </Link>
+          <Button variant="outline" size="sm" onClick={handleShare} title="Compartir producto">
+            <Share2 className="w-4 h-4" />
+          </Button>
         </div>
       </div>
     </div>

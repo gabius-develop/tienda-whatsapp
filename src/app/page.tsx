@@ -67,23 +67,31 @@ export default function StorePage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Store className="w-7 h-7 text-green-600" />
-            <h1 className="text-xl font-bold text-gray-900">{settings.store_name}</h1>
+        <div className="max-w-6xl mx-auto px-4 py-3">
+          {/* Fila superior: logo + carrito */}
+          <div className="flex items-center justify-between gap-3 mb-2 sm:mb-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <Store className="w-6 h-6 text-green-600 shrink-0" />
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">{settings.store_name}</h1>
+            </div>
+            {/* Buscador solo visible en pantallas medianas+ en fila superior */}
+            <div className="hidden sm:flex flex-1 max-w-sm">
+              <SearchBar value={search} onChange={setSearch} />
+            </div>
+            <CartButton />
           </div>
-          <div className="flex-1 max-w-sm">
+          {/* Buscador en fila propia en móvil */}
+          <div className="sm:hidden mt-2">
             <SearchBar value={search} onChange={setSearch} />
           </div>
-          <CartButton />
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Hero */}
-        <div className="bg-gradient-to-r from-green-600 to-green-500 rounded-2xl p-8 mb-8 text-white">
-          <h2 className="text-3xl font-bold mb-2">{settings.welcome_title}</h2>
-          <p className="text-green-100">{settings.welcome_subtitle}</p>
+        <div className="bg-gradient-to-r from-green-600 to-green-500 rounded-2xl p-5 sm:p-8 mb-6 sm:mb-8 text-white">
+          <h2 className="text-xl sm:text-3xl font-bold mb-1 sm:mb-2">{settings.welcome_title}</h2>
+          <p className="text-sm sm:text-base text-green-100">{settings.welcome_subtitle}</p>
         </div>
 
         {/* Live banner */}
@@ -105,19 +113,19 @@ export default function StorePage() {
 
         {/* Product Grid */}
         {loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl h-72 animate-pulse border border-gray-100" />
+              <div key={i} className="bg-white rounded-2xl h-64 sm:h-72 animate-pulse border border-gray-100" />
             ))}
           </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-20">
+          <div className="text-center py-16 sm:py-20">
             <div className="text-6xl mb-4">🛍️</div>
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay productos disponibles</h3>
-            <p className="text-gray-500">Vuelve pronto, estamos agregando más productos.</p>
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-2">No hay productos disponibles</h3>
+            <p className="text-gray-500 text-sm sm:text-base">Vuelve pronto, estamos agregando más productos.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
