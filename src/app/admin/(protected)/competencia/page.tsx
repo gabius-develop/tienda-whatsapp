@@ -25,6 +25,7 @@ const SITE_LABELS: Record<string, string> = {
   sams_mx: "Sam's Club",
   walmart_mx: 'Walmart',
   mercadolibre_mx: 'Mercado Libre',
+  aurrera_mx: 'Bodega Aurrera',
   catalogo_excel: 'Catálogo',
 }
 
@@ -32,10 +33,11 @@ const SITE_COLORS: Record<string, string> = {
   sams_mx: 'bg-blue-100 text-blue-700',
   walmart_mx: 'bg-yellow-100 text-yellow-700',
   mercadolibre_mx: 'bg-orange-100 text-orange-700',
+  aurrera_mx: 'bg-green-100 text-green-700',
   catalogo_excel: 'bg-gray-100 text-gray-700',
 }
 
-const ALL_SITES = ['all', 'sams_mx', 'walmart_mx', 'mercadolibre_mx']
+const ALL_SITES = ['all', 'sams_mx', 'walmart_mx', 'aurrera_mx', 'mercadolibre_mx']
 
 export default function CompetenciaPage() {
   const [products, setProducts] = useState<CompetitorProduct[]>([])
