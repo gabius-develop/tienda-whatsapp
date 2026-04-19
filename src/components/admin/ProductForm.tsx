@@ -26,6 +26,7 @@ type ProductFormOutput = z.output<typeof productSchema>
 
 interface ProductFormProps {
   product?: Product
+  prefill?: { name?: string; price?: string; image_url?: string }
   onSuccess: () => void
 }
 
@@ -35,9 +36,11 @@ function getInitialImages(product?: Product): string[] {
   return []
 }
 
-export default function ProductForm({ product, onSuccess }: ProductFormProps) {
+export default function ProductForm({ product, prefill, onSuccess }: ProductFormProps) {
   const [uploading, setUploading] = useState(false)
-  const [images, setImages] = useState<string[]>(getInitialImages(product))
+  const [images, setImages] = useState<string[]>(
+    getInitialImages(product) ?? (prefill?.image_url ? [prefill.image_url] : [])
+  )
   const [saving, setSaving] = useState(false)
 
   const {
@@ -47,9 +50,9 @@ export default function ProductForm({ product, onSuccess }: ProductFormProps) {
   } = useForm<ProductFormValues, unknown, ProductFormOutput>({
     resolver: zodResolver(productSchema) as never,
     defaultValues: {
-      name: product?.name ?? '',
+      name: product?.name ?? prefill?.name ?? '',
       description: product?.description ?? '',
-      price: product?.price?.toString() ?? '0',
+      price: product?.price?.toString() ?? prefill?.price ?? '0',
       category: product?.category ?? '',
       stock: product?.stock?.toString() ?? '0',
       is_active: product?.is_active ?? true,

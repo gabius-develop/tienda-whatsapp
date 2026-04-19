@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Package, LogOut, Store, ShoppingBag, Megaphone, Radio } from 'lucide-react'
+import { LayoutDashboard, Package, LogOut, Store, ShoppingBag, Megaphone, Radio, BarChart2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -13,6 +13,7 @@ const navItems = [
   { href: '/admin/products', label: 'Productos', icon: Package },
   { href: '/admin/promotions', label: 'Promociones', icon: Megaphone },
   { href: '/admin/live', label: 'En Vivo', icon: Radio, highlight: true },
+  { href: '/admin/competencia', label: 'Competencia', icon: BarChart2 },
 ]
 
 export default function Sidebar() {
