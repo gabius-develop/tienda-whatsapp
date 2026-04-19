@@ -13,6 +13,7 @@ function NewProductContent() {
   const prefill = {
     name: searchParams.get('name') ?? undefined,
     price: searchParams.get('price') ?? undefined,
+    was_price: searchParams.get('was_price') ?? undefined,
     image_url: searchParams.get('image') ?? undefined,
   }
 

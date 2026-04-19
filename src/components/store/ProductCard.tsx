@@ -58,7 +58,17 @@ export default function ProductCard({ product }: ProductCardProps) {
         )}
 
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xl font-bold text-green-600">{formatCurrency(product.price)}</span>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-xl font-bold text-green-600">{formatCurrency(product.price)}</span>
+            {product.was_price && product.was_price > product.price && (
+              <>
+                <span className="text-sm text-gray-400 line-through">{formatCurrency(product.was_price)}</span>
+                <span className="text-xs font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">
+                  -{Math.round((1 - product.price / product.was_price) * 100)}%
+                </span>
+              </>
+            )}
+          </div>
           {product.stock > 0 && product.stock <= 5 && (
             <Badge variant="warning">Solo {product.stock} disponibles</Badge>
           )}

@@ -16,6 +16,7 @@ const productSchema = z.object({
   name: z.string().min(2, 'El nombre es requerido'),
   description: z.string().optional(),
   price: z.string().transform((v) => parseFloat(v)).pipe(z.number().positive('El precio debe ser mayor a 0')),
+  was_price: z.string().optional().transform((v) => (v && v !== '' ? parseFloat(v) : null)),
   category: z.string().optional(),
   stock: z.string().transform((v) => parseInt(v, 10)).pipe(z.number().int().min(0, 'El stock no puede ser negativo')),
   is_active: z.boolean(),
@@ -26,7 +27,7 @@ type ProductFormOutput = z.output<typeof productSchema>
 
 interface ProductFormProps {
   product?: Product
-  prefill?: { name?: string; price?: string; image_url?: string }
+  prefill?: { name?: string; price?: string; was_price?: string; image_url?: string }
   onSuccess: () => void
 }
 
@@ -53,6 +54,7 @@ export default function ProductForm({ product, prefill, onSuccess }: ProductForm
       name: product?.name ?? prefill?.name ?? '',
       description: product?.description ?? '',
       price: product?.price?.toString() ?? prefill?.price ?? '0',
+      was_price: product?.was_price?.toString() ?? prefill?.was_price ?? '',
       category: product?.category ?? '',
       stock: product?.stock?.toString() ?? '0',
       is_active: product?.is_active ?? true,
@@ -232,6 +234,14 @@ export default function ProductForm({ product, prefill, onSuccess }: ProductForm
           placeholder="0.00"
           error={errors.price?.message}
           {...register('price')}
+        />
+
+        <Input
+          label="Precio anterior / tachado"
+          type="number"
+          step="0.01"
+          placeholder="Dejar vacío si no hay descuento"
+          {...register('was_price')}
         />
 
         <Input

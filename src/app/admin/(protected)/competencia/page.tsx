@@ -69,11 +69,9 @@ export default function CompetenciaPage() {
     Math.round((1 - price / wasPrice) * 100)
 
   const buildPublishUrl = (p: CompetitorProduct) => {
-    const params = new URLSearchParams({
-      name: p.name,
-      price: String(p.price),
-      ...(p.image ? { image: p.image } : {}),
-    })
+    const params = new URLSearchParams({ name: p.name, price: String(p.price) })
+    if (p.image) params.set('image', p.image)
+    if (p.was_price && p.was_price > p.price) params.set('was_price', String(p.was_price))
     return `/admin/products/new?${params}`
   }
 
