@@ -5,7 +5,6 @@ import { ShoppingCart, Eye, Share2, Check } from 'lucide-react'
 import { Product } from '@/types'
 import { useCartStore } from '@/store/cartStore'
 import { formatCurrency } from '@/lib/utils'
-import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
@@ -33,7 +32,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       try {
         await navigator.share({ title: product.name, text: product.description ?? '', url })
       } catch {
-        // el usuario canceló el share, no hacer nada
+        // cancelado por el usuario
       }
     } else {
       await navigator.clipboard.writeText(url)
@@ -42,74 +41,76 @@ export default function ProductCard({ product }: ProductCardProps) {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group">
-      <div className="relative aspect-square bg-gray-50">
+    <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col">
+      {/* Imagen — proporción cuadrada, dominante */}
+      <Link href={`/product/${product.id}`} className="relative block aspect-square bg-gray-50">
         {product.image_url ? (
           <Image
             src={product.image_url}
             alt={product.name}
             fill
-            className="object-cover group-hover:scale-105 transition-transform duration-300"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
         ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-gray-300 text-6xl">📦</div>
-          </div>
+          <div className="flex items-center justify-center h-full text-5xl">📦</div>
         )}
         {product.stock === 0 && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <Badge variant="danger" className="text-sm px-3 py-1">Agotado</Badge>
+            <span className="text-white text-xs font-bold bg-black/60 px-3 py-1 rounded-full">Agotado</span>
+          </div>
+        )}
+        {product.was_price && product.was_price > product.price && (
+          <div className="absolute top-2 right-2">
+            <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+              -{Math.round((1 - product.price / product.was_price) * 100)}%
+            </span>
           </div>
         )}
         {product.category && (
           <div className="absolute top-2 left-2">
-            <Badge variant="info">{product.category}</Badge>
+            <Badge variant="info" className="text-[10px] px-2 py-0.5">{product.category}</Badge>
           </div>
         )}
-      </div>
+      </Link>
 
-      <div className="p-4">
-        <h3 className="font-semibold text-gray-900 line-clamp-2 mb-1">{product.name}</h3>
-        {product.description && (
-          <p className="text-sm text-gray-500 line-clamp-2 mb-3">{product.description}</p>
-        )}
+      {/* Info */}
+      <div className="p-3 flex flex-col flex-1">
+        <p className="text-xs font-semibold text-gray-800 line-clamp-2 mb-1 leading-snug">{product.name}</p>
 
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <span className="text-xl font-bold text-green-600">{formatCurrency(product.price)}</span>
-            {product.was_price && product.was_price > product.price && (
-              <>
-                <span className="text-sm text-gray-400 line-through">{formatCurrency(product.was_price)}</span>
-                <span className="text-xs font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">
-                  -{Math.round((1 - product.price / product.was_price) * 100)}%
-                </span>
-              </>
-            )}
-          </div>
-          {product.stock > 0 && product.stock <= 5 && (
-            <Badge variant="warning">Solo {product.stock} disponibles</Badge>
+        <div className="flex items-baseline gap-1 flex-wrap mb-2">
+          <span className="text-base font-bold text-green-600">{formatCurrency(product.price)}</span>
+          {product.was_price && product.was_price > product.price && (
+            <span className="text-xs text-gray-400 line-through">{formatCurrency(product.was_price)}</span>
           )}
         </div>
 
-        <div className="flex gap-2">
-          <Button
+        {/* Acciones */}
+        <div className="flex gap-1.5 mt-auto">
+          {/* Botón agregar — toma todo el espacio disponible */}
+          <button
             onClick={handleAddToCart}
             disabled={product.stock === 0}
-            className={`flex-1 transition-all duration-200 ${added ? 'bg-green-800 scale-95' : ''}`}
-            size="sm"
+            className={`flex-1 flex items-center justify-center gap-1 rounded-xl py-2.5 text-xs font-bold transition-all duration-150
+              ${added
+                ? 'bg-green-700 text-white scale-95'
+                : product.stock === 0
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-green-600 text-white active:bg-green-800 active:scale-95'
+              }`}
           >
-            {added ? <Check className="w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
+            {added ? <Check className="w-3.5 h-3.5" /> : <ShoppingCart className="w-3.5 h-3.5" />}
             {added ? '¡Listo!' : 'Agregar'}
-          </Button>
-          <Link href={`/product/${product.id}`}>
-            <Button variant="outline" size="sm">
-              <Eye className="w-4 h-4" />
-            </Button>
-          </Link>
-          <Button variant="outline" size="sm" onClick={handleShare} title="Compartir producto">
-            <Share2 className="w-4 h-4" />
-          </Button>
+          </button>
+
+          {/* Compartir */}
+          <button
+            onClick={handleShare}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 active:bg-gray-100 active:scale-95 transition-all"
+            title="Compartir"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
     </div>

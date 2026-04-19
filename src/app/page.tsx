@@ -33,28 +33,20 @@ export default function StorePage() {
     const params = new URLSearchParams()
     if (selectedCategory) params.set('category', selectedCategory)
     if (search) params.set('search', search)
-
     const res = await fetch(`/api/products?${params}`)
     const data = await res.json()
     setProducts(data)
     setLoading(false)
   }, [selectedCategory, search])
 
-  useEffect(() => {
-    fetchProducts()
-  }, [fetchProducts])
+  useEffect(() => { fetchProducts() }, [fetchProducts])
 
-  // Suscripción en tiempo real a cambios en productos
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
       .channel('store-products-realtime')
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'products' },
-        () => { fetchProducts() }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => { fetchProducts() })
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [fetchProducts])
 
@@ -65,64 +57,68 @@ export default function StorePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* ── APP BAR (móvil) / Header (desktop) ── */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-3">
-          {/* Fila superior: logo + carrito */}
-          <div className="flex items-center justify-between gap-3 mb-2 sm:mb-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <Store className="w-6 h-6 text-green-600 shrink-0" />
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">{settings.store_name}</h1>
+        {/* Fila 1: logo + carrito */}
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 bg-green-600 rounded-xl flex items-center justify-center shrink-0">
+              <Store className="w-4 h-4 text-white" />
             </div>
-            {/* Buscador solo visible en pantallas medianas+ en fila superior */}
-            <div className="hidden sm:flex flex-1 max-w-sm">
-              <SearchBar value={search} onChange={setSearch} />
-            </div>
-            <CartButton />
+            <h1 className="text-base font-bold text-gray-900 truncate">{settings.store_name}</h1>
           </div>
-          {/* Buscador en fila propia en móvil */}
-          <div className="sm:hidden mt-2">
-            <SearchBar value={search} onChange={setSearch} />
-          </div>
+          <CartButton />
+        </div>
+        {/* Fila 2: buscador siempre visible */}
+        <div className="px-4 pb-3">
+          <SearchBar value={search} onChange={setSearch} />
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
-        {/* Hero */}
-        <div className="bg-gradient-to-r from-green-600 to-green-500 rounded-2xl p-5 sm:p-8 mb-6 sm:mb-8 text-white">
-          <h2 className="text-xl sm:text-3xl font-bold mb-1 sm:mb-2">{settings.welcome_title}</h2>
-          <p className="text-sm sm:text-base text-green-100">{settings.welcome_subtitle}</p>
+      {/* ── HERO: solo en desktop ── */}
+      <div className="hidden sm:block max-w-6xl mx-auto px-4 pt-8">
+        <div className="bg-gradient-to-r from-green-600 to-green-500 rounded-2xl p-8 mb-8 text-white">
+          <h2 className="text-3xl font-bold mb-2">{settings.welcome_title}</h2>
+          <p className="text-green-100">{settings.welcome_subtitle}</p>
         </div>
+      </div>
 
-        {/* Live banner */}
+      {/* ── HERO MÓVIL: banner compacto ── */}
+      <div className="sm:hidden bg-gradient-to-r from-green-600 to-green-500 px-4 py-4">
+        <p className="text-white font-semibold text-sm">{settings.welcome_title}</p>
+        <p className="text-green-100 text-xs mt-0.5">{settings.welcome_subtitle}</p>
+      </div>
+
+      {/* ── LIVE + PROMOCIONES ── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-4 mt-3">
         <LiveBanner />
-
-        {/* Promotions */}
         <PromotionsBanner />
+      </div>
 
-        {/* Filters */}
-        {categories.length > 0 && (
-          <div className="mb-6">
-            <CategoryFilter
-              categories={categories}
-              selected={selectedCategory}
-              onSelect={setSelectedCategory}
-            />
-          </div>
-        )}
+      {/* ── CATEGORÍAS ── */}
+      {categories.length > 0 && (
+        <div className="sticky top-[109px] sm:top-0 sm:relative z-30 bg-gray-50 py-3 border-b border-gray-100 sm:border-none sm:py-0 sm:mb-6 sm:mt-2 sm:max-w-6xl sm:mx-auto">
+          <CategoryFilter
+            categories={categories}
+            selected={selectedCategory}
+            onSelect={setSelectedCategory}
+          />
+        </div>
+      )}
 
-        {/* Product Grid */}
+      {/* ── GRID DE PRODUCTOS ── */}
+      <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 pb-32 sm:pb-10">
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl h-64 sm:h-72 animate-pulse border border-gray-100" />
+              <div key={i} className="bg-white rounded-2xl h-64 animate-pulse border border-gray-100" />
             ))}
           </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-16 sm:py-20">
-            <div className="text-6xl mb-4">🛍️</div>
-            <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-2">No hay productos disponibles</h3>
-            <p className="text-gray-500 text-sm sm:text-base">Vuelve pronto, estamos agregando más productos.</p>
+          <div className="text-center py-20">
+            <div className="text-5xl mb-4">🛍️</div>
+            <h3 className="text-lg font-semibold text-gray-700 mb-1">Sin productos</h3>
+            <p className="text-gray-400 text-sm">Vuelve pronto, estamos agregando más.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -133,7 +129,7 @@ export default function StorePage() {
         )}
       </main>
 
-      <footer className="text-center py-8 text-sm text-gray-400 border-t border-gray-100 mt-12">
+      <footer className="hidden sm:block text-center py-8 text-sm text-gray-400 border-t border-gray-100">
         <p>{settings.footer_text}</p>
       </footer>
 
