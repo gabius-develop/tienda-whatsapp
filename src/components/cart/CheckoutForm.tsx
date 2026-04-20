@@ -22,13 +22,13 @@ type CheckoutFormData = z.infer<typeof checkoutSchema>
 
 export default function CheckoutForm() {
   const [loading, setLoading] = useState<'whatsapp' | 'mercadopago' | null>(null)
-  const [whatsappPhone, setWhatsappPhone] = useState<string>('')
+  const [whatsappPhone, setWhatsappPhone] = useState<string | null>(null)
   const { items, totalPrice, clearCart } = useCartStore()
 
   useEffect(() => {
     fetch('/api/settings')
       .then((r) => r.json())
-      .then((s) => { if (s.whatsapp_phone) setWhatsappPhone(s.whatsapp_phone) })
+      .then((s) => { setWhatsappPhone(s.whatsapp_phone || process.env.NEXT_PUBLIC_WHATSAPP_PHONE || '') })
       .catch(() => { setWhatsappPhone(process.env.NEXT_PUBLIC_WHATSAPP_PHONE ?? '') })
   }, [])
 
@@ -95,7 +95,7 @@ export default function CheckoutForm() {
       })
 
       clearCart()
-      window.location.href = getWhatsAppUrl(whatsappPhone, message)
+      window.location.href = getWhatsAppUrl(whatsappPhone!, message)
     } catch {
       toast.error('Hubo un error. Intenta de nuevo.')
     } finally {
@@ -224,13 +224,13 @@ export default function CheckoutForm() {
             type="button"
             onClick={handleSubmit(handleWhatsApp)}
             loading={loading === 'whatsapp'}
-            disabled={loading !== null}
+            disabled={loading !== null || whatsappPhone === null}
             size="lg"
             variant="primary"
             className="w-full rounded-xl"
           >
             <MessageCircle className="w-5 h-5" />
-            Solo por WhatsApp
+            {whatsappPhone === null ? 'Cargando...' : 'Solo por WhatsApp'}
           </Button>
         </div>
 
