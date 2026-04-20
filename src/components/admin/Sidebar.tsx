@@ -6,19 +6,43 @@ import { LayoutDashboard, Package, LogOut, Store, ShoppingBag, Megaphone, Radio,
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
-const navItems = [
+interface NavItem {
+  href: string
+  label: string
+  icon: React.ElementType
+  highlight?: boolean
+}
+
+const baseNavItems: NavItem[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/orders', label: 'Pedidos', icon: ShoppingBag },
   { href: '/admin/products', label: 'Productos', icon: Package },
   { href: '/admin/promotions', label: 'Promociones', icon: Megaphone },
-  { href: '/admin/live', label: 'En Vivo', icon: Radio, highlight: true },
-  { href: '/admin/competencia', label: 'Competencia', icon: BarChart2 },
 ]
 
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const [featureLive, setFeatureLive] = useState(false)
+  const [featureCompetencia, setFeatureCompetencia] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((s) => {
+        setFeatureLive(s.feature_live === true)
+        setFeatureCompetencia(s.feature_competencia === true)
+      })
+      .catch(() => {})
+  }, [])
+
+  const navItems: NavItem[] = [
+    ...baseNavItems,
+    ...(featureLive ? [{ href: '/admin/live', label: 'En Vivo', icon: Radio, highlight: true }] : []),
+    ...(featureCompetencia ? [{ href: '/admin/competencia', label: 'Competencia', icon: BarChart2 }] : []),
+  ]
 
   const handleLogout = async () => {
     const supabase = createClient()

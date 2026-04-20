@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -22,7 +22,15 @@ type CheckoutFormData = z.infer<typeof checkoutSchema>
 
 export default function CheckoutForm() {
   const [loading, setLoading] = useState<'whatsapp' | 'mercadopago' | null>(null)
+  const [whatsappPhone, setWhatsappPhone] = useState<string>('')
   const { items, totalPrice, clearCart } = useCartStore()
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((s) => { if (s.whatsapp_phone) setWhatsappPhone(s.whatsapp_phone) })
+      .catch(() => { setWhatsappPhone(process.env.NEXT_PUBLIC_WHATSAPP_PHONE ?? '') })
+  }, [])
 
   const {
     register,
@@ -87,7 +95,7 @@ export default function CheckoutForm() {
       })
 
       clearCart()
-      window.location.href = getWhatsAppUrl(process.env.NEXT_PUBLIC_WHATSAPP_PHONE!, message)
+      window.location.href = getWhatsAppUrl(whatsappPhone, message)
     } catch {
       toast.error('Hubo un error. Intenta de nuevo.')
     } finally {

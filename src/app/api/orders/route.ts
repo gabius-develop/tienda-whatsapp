@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getTenantBySlug, getTenantSlugFromRequest } from '@/lib/tenant'
 
 export async function POST(request: NextRequest) {
+  const tenantSlug = getTenantSlugFromRequest(request)
+  const tenant = await getTenantBySlug(tenantSlug)
+  if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+
   const supabase = await createClient()
   const body = await request.json()
 
@@ -22,6 +27,7 @@ export async function POST(request: NextRequest) {
       .from('products')
       .select('stock, name')
       .eq('id', item.product_id)
+      .eq('tenant_id', tenant.id)
       .single()
 
     if (product && product.stock < item.quantity) {
@@ -40,6 +46,7 @@ export async function POST(request: NextRequest) {
       customer_phone,
       customer_address,
       total,
+      tenant_id: tenant.id,
       status: 'pending',
       whatsapp_sent_at: new Date().toISOString(),
     }])
@@ -53,6 +60,7 @@ export async function POST(request: NextRequest) {
   // 3. Crear items del pedido
   const orderItems = (items as OrderItem[]).map((item) => ({
     order_id: order.id,
+    tenant_id: tenant.id,
     product_id: item.product_id,
     product_name: item.product_name,
     quantity: item.quantity,
@@ -72,6 +80,7 @@ export async function POST(request: NextRequest) {
       .from('products')
       .select('stock')
       .eq('id', item.product_id)
+      .eq('tenant_id', tenant.id)
       .single()
 
     if (product) {
@@ -80,13 +89,18 @@ export async function POST(request: NextRequest) {
         .from('products')
         .update({ stock: newStock, updated_at: new Date().toISOString() })
         .eq('id', item.product_id)
+        .eq('tenant_id', tenant.id)
     }
   }
 
   return NextResponse.json(order, { status: 201 })
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const tenantSlug = getTenantSlugFromRequest(request)
+  const tenant = await getTenantBySlug(tenantSlug)
+  if (!tenant) return NextResponse.json([])
+
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -97,6 +111,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items(*)')
+    .eq('tenant_id', tenant.id)
     .order('created_at', { ascending: false })
     .limit(50)
 

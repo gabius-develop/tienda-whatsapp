@@ -17,9 +17,35 @@ function buildSupabaseClient(request: NextRequest, response: NextResponse) {
   )
 }
 
+function extractTenantSlug(request: NextRequest): string {
+  const host = request.headers.get('host') || ''
+  const hostname = host.split(':')[0] // quitar puerto
+
+  // En local dev: localhost → usa DEFAULT_TENANT_SLUG
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return process.env.DEFAULT_TENANT_SLUG ?? 'default'
+  }
+
+  const parts = hostname.split('.')
+
+  // Si tiene subdominio (más de 2 partes, ej: cliente.miapp.com)
+  if (parts.length >= 3 && parts[0] !== 'www') {
+    return parts[0]
+  }
+
+  // Sin subdominio o www → tenant por defecto
+  return process.env.DEFAULT_TENANT_SLUG ?? 'default'
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const response = NextResponse.next({ request })
+
+  // Inyectar x-tenant-slug en todos los requests
+  const tenantSlug = extractTenantSlug(request)
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-tenant-slug', tenantSlug)
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } })
 
   // ── Admin routes ──────────────────────────────────────────
   if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
@@ -38,7 +64,6 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/superadmin/login', request.url))
     }
 
-    // Verificar que el token coincide con el hash de la contraseña
     const encoder = new TextEncoder()
     const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(superadminPassword))
     const expectedToken = Array.from(new Uint8Array(hashBuffer))
@@ -56,5 +81,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/superadmin/:path*'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon\\.ico).*)',
+  ],
 }

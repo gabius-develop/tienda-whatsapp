@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getTenantBySlug, getTenantSlugFromRequest } from '@/lib/tenant'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json(
-        { error: 'Missing Supabase environment variables', supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey },
-        { status: 500 }
-      )
-    }
+    const tenantSlug = getTenantSlugFromRequest(request)
+    const tenant = await getTenantBySlug(tenantSlug)
+    if (!tenant) return NextResponse.json([])
 
     const { searchParams } = new URL(request.url)
     const category = searchParams.get('category')
@@ -23,6 +18,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('products')
       .select('*')
+      .eq('tenant_id', tenant.id)
       .order('created_at', { ascending: false })
 
     if (!includeInactive) {
@@ -52,6 +48,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const tenantSlug = getTenantSlugFromRequest(request)
+    const tenant = await getTenantBySlug(tenantSlug)
+    if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+
     const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await supabase
       .from('products')
-      .insert([body])
+      .insert([{ ...body, tenant_id: tenant.id }])
       .select()
       .single()
 

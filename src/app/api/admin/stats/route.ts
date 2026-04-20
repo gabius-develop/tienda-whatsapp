@@ -1,7 +1,17 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getTenantBySlug, getTenantSlugFromRequest } from '@/lib/tenant'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const tenantSlug = getTenantSlugFromRequest(request)
+  const tenant = await getTenantBySlug(tenantSlug)
+  if (!tenant) {
+    return NextResponse.json({
+      total_orders: 0, total_revenue: 0, total_products: 0,
+      active_products: 0, top_products: [], recent_orders: [],
+    })
+  }
+
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -13,20 +23,24 @@ export async function GET() {
     supabase
       .from('orders')
       .select('total')
+      .eq('tenant_id', tenant.id)
       .eq('status', 'pending'),
 
     supabase
       .from('products')
-      .select('id, is_active'),
+      .select('id, is_active')
+      .eq('tenant_id', tenant.id),
 
     supabase
       .from('order_items')
       .select('product_id, product_name, quantity, subtotal, products(image_url)')
+      .eq('tenant_id', tenant.id)
       .order('quantity', { ascending: false }),
 
     supabase
       .from('orders')
       .select('*')
+      .eq('tenant_id', tenant.id)
       .order('created_at', { ascending: false })
       .limit(5),
   ])
@@ -36,7 +50,6 @@ export async function GET() {
   const totalProducts = productsResult.data?.length ?? 0
   const activeProducts = productsResult.data?.filter((p) => p.is_active).length ?? 0
 
-  // Aggregate top products from order items
   const productMap = new Map<string, {
     product_id: string
     product_name: string

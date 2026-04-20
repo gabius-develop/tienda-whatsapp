@@ -1,16 +1,23 @@
 'use client'
 
 import Link from 'next/link'
-import { Code2, Settings, LogOut, Store } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { usePathname } from 'next/navigation'
+import { Code2, Settings, LogOut, Store, Users } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 
+const navItems = [
+  { href: '/superadmin/clients', label: 'Clientes', icon: Users },
+  { href: '/superadmin/settings', label: 'Configuración de tienda', icon: Settings },
+  { href: '/admin/dashboard', label: 'Ir al admin', icon: Store },
+]
+
 export default function SuperAdminPanelLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const router = useRouter()
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await fetch('/api/superadmin/auth', { method: 'DELETE' })
     router.push('/superadmin/login')
   }
 
@@ -27,20 +34,21 @@ export default function SuperAdminPanelLayout({ children }: { children: React.Re
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
-          <Link
-            href="/superadmin/settings"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-800 hover:text-white transition-colors bg-purple-600 text-white"
-          >
-            <Settings className="w-5 h-5" />
-            Configuración de tienda
-          </Link>
-          <Link
-            href="/admin/dashboard"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
-          >
-            <Store className="w-5 h-5" />
-            Ir al admin normal
-          </Link>
+          {navItems.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                pathname.startsWith(href)
+                  ? 'bg-purple-600 text-white'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+              )}
+            >
+              <Icon className="w-5 h-5" />
+              {label}
+            </Link>
+          ))}
         </nav>
 
         <div className="p-4 border-t border-gray-800">
