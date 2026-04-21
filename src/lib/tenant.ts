@@ -31,7 +31,7 @@ export const getTenantBySlug = unstable_cache(
     return data ?? null
   },
   ['tenant-by-slug'],
-  { revalidate: 60 }
+  { revalidate: 30, tags: ['tenants'] }
 )
 
 export function getTenantSlugFromRequest(request: { headers: { get(name: string): string | null } }): string {

@@ -45,11 +45,12 @@ function extractTenantSlugFromSubdomain(hostname: string): string {
 /**
  * Extrae el slug del tenant:
  * 1. Si la ruta empieza con /s/[slug], lo toma de la URL y hace rewrite
- * 2. Si el subdominio coincide con un tenant, lo usa
- * 3. Si hay cookie x-tenant-slug (de una visita anterior a /s/[slug]), la usa
+ * 2. Si hay ?tenant= en la query string (usado para /admin/login?tenant=slug)
+ * 3. Si el subdominio coincide con un tenant, lo usa
+ * 4. Si hay cookie x-tenant-slug (de una visita anterior a /s/[slug]), la usa
  */
 function resolveTenant(request: NextRequest): { slug: string; rewriteTo: string | null } {
-  const { pathname } = request.nextUrl
+  const { pathname, searchParams } = request.nextUrl
 
   // 1. Path-based: /s/[slug] o /s/[slug]/...
   const match = pathname.match(/^\/s\/([^/]+)(\/.*)?$/)
@@ -59,7 +60,13 @@ function resolveTenant(request: NextRequest): { slug: string; rewriteTo: string 
     return { slug, rewriteTo: restPath }
   }
 
-  // 2. Subdominio
+  // 2. Query param ?tenant=slug (para acceso al admin con contexto de tenant)
+  const tenantParam = searchParams.get('tenant')
+  if (tenantParam) {
+    return { slug: tenantParam, rewriteTo: null }
+  }
+
+  // 3. Subdominio
   const host = request.headers.get('host') || ''
   const hostname = host.split(':')[0]
   const subdomainSlug = extractTenantSlugFromSubdomain(hostname)
@@ -69,7 +76,7 @@ function resolveTenant(request: NextRequest): { slug: string; rewriteTo: string 
     return { slug: subdomainSlug, rewriteTo: null }
   }
 
-  // 3. Cookie como fallback (persiste el slug después de navegar desde /s/[slug])
+  // 4. Cookie como fallback (persiste el slug después de navegar desde /s/[slug])
   const cookieSlug = request.cookies.get(TENANT_COOKIE)?.value
   if (cookieSlug) {
     return { slug: cookieSlug, rewriteTo: null }
@@ -84,20 +91,6 @@ export async function middleware(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-tenant-slug', slug)
-
-  // ── /admin/login?tenant=slug → guardar slug en cookie para el panel ────────
-  if (pathname === '/admin/login') {
-    const tenantParam = request.nextUrl.searchParams.get('tenant')
-    if (tenantParam) {
-      const response = NextResponse.next({ request: { headers: requestHeaders } })
-      response.cookies.set(TENANT_COOKIE, tenantParam, {
-        path: '/',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24,
-      })
-      return response
-    }
-  }
 
   // ── /s/[slug]/* → rewrite a /* y guardar slug en cookie ───────────────────
   if (rewriteTo !== null) {

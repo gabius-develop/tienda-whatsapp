@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Save, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Save, RefreshCw, Copy, KeyRound, ExternalLink, LayoutDashboard } from 'lucide-react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 
@@ -21,6 +21,8 @@ export default function EditClientPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [resettingPassword, setResettingPassword] = useState(false)
+  const [newTempPassword, setNewTempPassword] = useState<string | null>(null)
   const [slug, setSlug] = useState('')
   const [form, setForm] = useState<TenantForm>({
     name: '',
@@ -87,6 +89,38 @@ export default function EditClientPage() {
       setSaving(false)
     }
   }
+
+  const handleResetPassword = async () => {
+    if (!confirm(`¿Generar nueva contraseña temporal para ${form.admin_email}?`)) return
+    setResettingPassword(true)
+    try {
+      const res = await fetch(`/api/superadmin/tenants/${id}`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Error al resetear contraseña')
+        return
+      }
+      setNewTempPassword(data.temp_password)
+      toast.success('Contraseña reseteada correctamente')
+    } catch {
+      toast.error('Error inesperado')
+    } finally {
+      setResettingPassword(false)
+    }
+  }
+
+  const copy = (text: string) => {
+    navigator.clipboard.writeText(text)
+    toast.success('Copiado')
+  }
+
+  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN
+  const adminUrl = appDomain
+    ? `https://${appDomain}/admin/login?tenant=${slug}`
+    : `http://localhost:3000/admin/login?tenant=${slug}`
+  const storeUrl = appDomain
+    ? `https://${appDomain}/s/${slug}`
+    : `http://localhost:3000/s/${slug}`
 
   if (loading) {
     return (
@@ -235,6 +269,70 @@ export default function EditClientPage() {
               }`} />
             </div>
           </label>
+        </section>
+
+        {/* Accesos */}
+        <section className="bg-gray-900 rounded-2xl p-6 border border-gray-800 space-y-3">
+          <h2 className="text-white font-semibold">Accesos del cliente</h2>
+
+          <div className="flex items-center justify-between gap-3 bg-gray-800 rounded-xl px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 mb-0.5 flex items-center gap-1">
+                <ExternalLink className="w-3 h-3" /> Tienda pública
+              </p>
+              <p className="text-green-300 text-sm font-mono truncate">{storeUrl}</p>
+            </div>
+            <button onClick={() => copy(storeUrl)} className="text-gray-500 hover:text-white flex-shrink-0">
+              <Copy className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 bg-gray-800 rounded-xl px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 mb-0.5 flex items-center gap-1">
+                <LayoutDashboard className="w-3 h-3" /> Panel de administración
+              </p>
+              <p className="text-purple-300 text-sm font-mono truncate">{adminUrl}</p>
+            </div>
+            <button onClick={() => copy(adminUrl)} className="text-gray-500 hover:text-white flex-shrink-0">
+              <Copy className="w-4 h-4" />
+            </button>
+          </div>
+
+          {form.admin_email && (
+            <div className="flex items-center justify-between gap-3 bg-gray-800 rounded-xl px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500 mb-0.5">Email admin</p>
+                <p className="text-white text-sm font-mono">{form.admin_email}</p>
+              </div>
+              <button onClick={() => copy(form.admin_email)} className="text-gray-500 hover:text-white flex-shrink-0">
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {newTempPassword && (
+            <div className="flex items-center justify-between gap-3 bg-yellow-950 border border-yellow-800 rounded-xl px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-xs text-yellow-600 mb-0.5">Nueva contraseña temporal</p>
+                <p className="text-yellow-300 text-sm font-mono">{newTempPassword}</p>
+              </div>
+              <button onClick={() => copy(newTempPassword)} className="text-yellow-600 hover:text-yellow-300 flex-shrink-0">
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {form.admin_email && (
+            <button
+              onClick={handleResetPassword}
+              disabled={resettingPassword}
+              className="w-full flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 hover:text-white font-medium py-2.5 px-4 rounded-xl transition-colors text-sm"
+            >
+              <KeyRound className="w-4 h-4" />
+              {resettingPassword ? 'Generando...' : 'Generar nueva contraseña'}
+            </button>
+          )}
         </section>
 
         <button
