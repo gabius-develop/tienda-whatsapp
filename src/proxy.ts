@@ -85,7 +85,7 @@ function resolveTenant(request: NextRequest): { slug: string; rewriteTo: string 
   return { slug: defaultSlug, rewriteTo: null }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const { slug, rewriteTo } = resolveTenant(request)
 

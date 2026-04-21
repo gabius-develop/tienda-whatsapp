@@ -62,7 +62,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  revalidateTag('tenants')
+  revalidateTag('tenants', {})
   return NextResponse.json(data)
 }
 
