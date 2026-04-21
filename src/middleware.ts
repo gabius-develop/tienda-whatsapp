@@ -26,9 +26,23 @@ function extractTenantSlug(request: NextRequest): string {
     return process.env.DEFAULT_TENANT_SLUG ?? 'default'
   }
 
-  const parts = hostname.split('.')
+  // Si APP_DOMAIN está configurado, usarlo para detectar subdominios de forma precisa
+  // Ej: APP_DOMAIN=tienda-whatsapp-production-099c.up.railway.app
+  const appDomain = process.env.APP_DOMAIN
+  if (appDomain) {
+    // El dominio principal → tenant por defecto
+    if (hostname === appDomain) {
+      return process.env.DEFAULT_TENANT_SLUG ?? 'default'
+    }
+    // Subdominio del dominio principal → es el slug del tenant
+    if (hostname.endsWith('.' + appDomain)) {
+      return hostname.slice(0, hostname.length - appDomain.length - 1)
+    }
+  }
 
-  // Si tiene subdominio (más de 2 partes, ej: cliente.miapp.com)
+  // Fallback: heurística por número de partes
+  // (funciona para dominios custom tipo cliente.miapp.com)
+  const parts = hostname.split('.')
   if (parts.length >= 3 && parts[0] !== 'www') {
     return parts[0]
   }

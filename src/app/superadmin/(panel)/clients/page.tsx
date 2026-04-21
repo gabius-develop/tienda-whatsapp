@@ -150,7 +150,11 @@ export default function ClientsPage() {
 
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <a
-                    href={`http://${tenant.slug}.localhost:3000`}
+                    href={
+                      process.env.NEXT_PUBLIC_APP_DOMAIN
+                        ? `https://${tenant.slug}.${process.env.NEXT_PUBLIC_APP_DOMAIN}`
+                        : `http://${tenant.slug}.localhost:3000`
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
