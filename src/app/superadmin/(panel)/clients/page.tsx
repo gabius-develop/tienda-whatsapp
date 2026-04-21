@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Radio, BarChart2, Phone, ExternalLink, Pencil, PowerOff } from 'lucide-react'
+import { Plus, Radio, BarChart2, Phone, ExternalLink, Pencil, PowerOff, LayoutDashboard } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Tenant {
@@ -161,6 +161,19 @@ export default function ClientsPage() {
                     title="Ver tienda"
                   >
                     <ExternalLink className="w-4 h-4" />
+                  </a>
+                  <a
+                    href={
+                      process.env.NEXT_PUBLIC_APP_DOMAIN
+                        ? `https://${process.env.NEXT_PUBLIC_APP_DOMAIN}/admin/login?tenant=${tenant.slug}`
+                        : `http://localhost:3000/admin/login?tenant=${tenant.slug}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                    title="Ir al panel admin"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
                   </a>
                   <Link
                     href={`/superadmin/clients/${tenant.id}`}

@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
       feature_live: feature_live ?? false,
       feature_competencia: feature_competencia ?? false,
       admin_email: admin_email ?? null,
+      mercadopago_access_token: body.mercadopago_access_token ?? null,
       is_active: true,
     }])
     .select()
@@ -71,5 +72,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json(data, { status: 201 })
+  // Crear usuario en Supabase Auth si se proporcionó email
+  let tempPassword: string | null = null
+  if (admin_email) {
+    tempPassword = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6).toUpperCase() + '!'
+    const { error: authError } = await supabase.auth.admin.createUser({
+      email: admin_email,
+      password: tempPassword,
+      email_confirm: true,
+    })
+    if (authError && authError.message !== 'User already registered') {
+      // No bloqueamos si el usuario ya existía, solo si hay un error real
+      console.error('Error creando usuario Auth:', authError.message)
+      tempPassword = null
+    }
+  }
+
+  return NextResponse.json({ ...data, temp_password: tempPassword }, { status: 201 })
 }

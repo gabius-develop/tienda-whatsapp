@@ -2,13 +2,20 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, Copy, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+
+interface CreatedCredentials {
+  slug: string
+  admin_email: string
+  temp_password: string | null
+}
 
 export default function NewClientPage() {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
+  const [created, setCreated] = useState<CreatedCredentials | null>(null)
   const [form, setForm] = useState({
     name: '',
     slug: '',
@@ -57,13 +64,119 @@ export default function NewClientPage() {
         return
       }
 
+      const result = await res.json()
       toast.success('Cliente creado correctamente')
-      router.push('/superadmin/clients')
+
+      if (form.admin_email) {
+        setCreated({
+          slug: form.slug,
+          admin_email: form.admin_email,
+          temp_password: result.temp_password ?? null,
+        })
+      } else {
+        router.push('/superadmin/clients')
+      }
     } catch {
       toast.error('Error inesperado')
     } finally {
       setSaving(false)
     }
+  }
+
+  // ── Pantalla de credenciales ────────────────────────────────────────────────
+  if (created) {
+    const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN
+    const adminUrl = appDomain
+      ? `https://${appDomain}/admin/login?tenant=${created.slug}`
+      : `http://localhost:3000/admin/login?tenant=${created.slug}`
+    const storeUrl = appDomain
+      ? `https://${appDomain}/s/${created.slug}`
+      : `http://localhost:3000/s/${created.slug}`
+
+    const copy = (text: string) => {
+      navigator.clipboard.writeText(text)
+      toast.success('Copiado')
+    }
+
+    return (
+      <div className="p-8 max-w-2xl">
+        <div className="flex items-center gap-3 mb-8">
+          <CheckCircle className="w-8 h-8 text-green-400" />
+          <div>
+            <h1 className="text-2xl font-bold text-white">¡Cliente creado!</h1>
+            <p className="text-gray-500 text-sm mt-1">Comparte estas credenciales con tu cliente</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 space-y-4">
+            <h2 className="text-white font-semibold text-sm uppercase tracking-wide">Acceso al panel admin</h2>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3 bg-gray-800 rounded-xl px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 mb-0.5">URL de acceso</p>
+                  <p className="text-purple-300 text-sm font-mono truncate">{adminUrl}</p>
+                </div>
+                <button onClick={() => copy(adminUrl)} className="text-gray-500 hover:text-white flex-shrink-0">
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 bg-gray-800 rounded-xl px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 mb-0.5">Email</p>
+                  <p className="text-white text-sm font-mono">{created.admin_email}</p>
+                </div>
+                <button onClick={() => copy(created.admin_email)} className="text-gray-500 hover:text-white flex-shrink-0">
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+
+              {created.temp_password ? (
+                <div className="flex items-center justify-between gap-3 bg-gray-800 rounded-xl px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500 mb-0.5">Contraseña temporal</p>
+                    <p className="text-yellow-300 text-sm font-mono">{created.temp_password}</p>
+                  </div>
+                  <button onClick={() => copy(created.temp_password!)} className="text-gray-500 hover:text-white flex-shrink-0">
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-yellow-950 border border-yellow-800 rounded-xl px-4 py-3">
+                  <p className="text-yellow-400 text-sm">El usuario ya existía en Supabase. Usa su contraseña actual.</p>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-gray-600 pt-1">
+              El cliente debe cambiar su contraseña en el primer acceso.
+            </p>
+          </div>
+
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+            <h2 className="text-white font-semibold text-sm uppercase tracking-wide mb-3">Tienda pública</h2>
+            <div className="flex items-center justify-between gap-3 bg-gray-800 rounded-xl px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500 mb-0.5">URL de la tienda</p>
+                <p className="text-green-300 text-sm font-mono truncate">{storeUrl}</p>
+              </div>
+              <button onClick={() => copy(storeUrl)} className="text-gray-500 hover:text-white flex-shrink-0">
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={() => router.push('/superadmin/clients')}
+            className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors"
+          >
+            Volver a clientes
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (

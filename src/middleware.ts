@@ -85,6 +85,20 @@ export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-tenant-slug', slug)
 
+  // ── /admin/login?tenant=slug → guardar slug en cookie para el panel ────────
+  if (pathname === '/admin/login') {
+    const tenantParam = request.nextUrl.searchParams.get('tenant')
+    if (tenantParam) {
+      const response = NextResponse.next({ request: { headers: requestHeaders } })
+      response.cookies.set(TENANT_COOKIE, tenantParam, {
+        path: '/',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24,
+      })
+      return response
+    }
+  }
+
   // ── /s/[slug]/* → rewrite a /* y guardar slug en cookie ───────────────────
   if (rewriteTo !== null) {
     const targetUrl = request.nextUrl.clone()
