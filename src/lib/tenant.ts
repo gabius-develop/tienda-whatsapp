@@ -10,6 +10,7 @@ export interface Tenant {
   feature_competencia: boolean
   is_active: boolean
   admin_email: string | null
+  mercadopago_access_token: string | null
 }
 
 function createPublicSupabaseClient() {

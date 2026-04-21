@@ -10,6 +10,7 @@ interface TenantForm {
   name: string
   whatsapp_phone: string
   admin_email: string
+  mercadopago_access_token: string
   feature_live: boolean
   feature_competencia: boolean
   is_active: boolean
@@ -25,6 +26,7 @@ export default function EditClientPage() {
     name: '',
     whatsapp_phone: '',
     admin_email: '',
+    mercadopago_access_token: '',
     feature_live: false,
     feature_competencia: false,
     is_active: true,
@@ -40,6 +42,7 @@ export default function EditClientPage() {
         name: data.name,
         whatsapp_phone: data.whatsapp_phone ?? '',
         admin_email: data.admin_email ?? '',
+        mercadopago_access_token: data.mercadopago_access_token ?? '',
         feature_live: data.feature_live,
         feature_competencia: data.feature_competencia,
         is_active: data.is_active,
@@ -67,6 +70,7 @@ export default function EditClientPage() {
           ...form,
           whatsapp_phone: form.whatsapp_phone || null,
           admin_email: form.admin_email || null,
+          mercadopago_access_token: form.mercadopago_access_token || null,
         }),
       })
 
@@ -152,6 +156,24 @@ export default function EditClientPage() {
               className="block w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
             />
             <p className="text-xs text-gray-600">Con código de país, sin + (ej: 521XXXXXXXXXX para México)</p>
+          </div>
+        </section>
+
+        {/* MercadoPago */}
+        <section className="bg-gray-900 rounded-2xl p-6 border border-gray-800 space-y-4">
+          <h2 className="text-white font-semibold">MercadoPago</h2>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-400">Access Token</label>
+            <input
+              type="password"
+              value={form.mercadopago_access_token}
+              onChange={(e) => handleChange('mercadopago_access_token', e.target.value)}
+              placeholder="APP_USR-... o TEST-..."
+              className="block w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
+            />
+            <p className="text-xs text-gray-600">
+              MercadoPago → Tu negocio → Credenciales → Access Token de producción
+            </p>
           </div>
         </section>
 

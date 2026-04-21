@@ -386,3 +386,58 @@ login super admin desarrollador
 npm run scrape
 
 npm start
+
+Cada cliente tiene su propio subdominio: cliente.tudominio.com. El middleware extrae el slug del subdominio y lo propaga como header x-tenant-slug a todas las rutas. Para dev local o
+  modo single-tenant: variable DEFAULT_TENANT_SLUG.
+
+  Archivos nuevos/modificados
+
+  ┌──────────────────────────────────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │                     Archivo                      │                                                    Qué hace                                                    │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ supabase/multitenancy.sql                        │ Migración: tabla tenants, columna tenant_id en todas las tablas de datos, nuevo PK compuesto en store_settings │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/lib/tenant.ts                                │ Utilidades: getTenantBySlug() (cacheada 60s) + getTenantSlugFromRequest()                                      │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/lib/supabase/service.ts                      │ Cliente Supabase con service role (para superadmin)                                                            │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/middleware.ts                                │ Extrae subdominio → inyecta x-tenant-slug en cada request                                                      │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/lib/settings.ts                              │ StoreSettings ahora incluye whatsapp_phone, feature_live, feature_competencia                                  │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/api/settings/route.ts                    │ Devuelve settings + teléfono + features del tenant actual                                                      │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/api/products/*                           │ Filtrado por tenant_id                                                                                         │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/api/orders/*                             │ Filtrado por tenant_id                                                                                         │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/api/admin/stats/route.ts                 │ Stats aisladas por tenant                                                                                      │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/api/promotions/*                         │ Filtrado por tenant_id                                                                                         │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/api/live/route.ts                        │ store_settings filtrado por tenant                                                                             │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/api/superadmin/tenants/route.ts          │ CRUD de tenants (GET lista, POST crear)                                                                        │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/api/superadmin/tenants/[id]/route.ts     │ GET/PUT/DELETE por tenant                                                                                      │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/components/cart/CheckoutForm.tsx             │ Lee whatsapp_phone desde /api/settings                                                                         │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/components/admin/Sidebar.tsx                 │ Oculta/muestra "En Vivo" y "Competencia" según feature_live/feature_competencia                                │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/superadmin/(panel)/layout.tsx            │ Nuevo enlace "Clientes" en la nav                                                                              │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/superadmin/(panel)/clients/page.tsx      │ Lista de clientes con toggles de features visibles                                                             │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/superadmin/(panel)/clients/new/page.tsx  │ Formulario crear cliente                                                                                       │
+  ├──────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ src/app/superadmin/(panel)/clients/[id]/page.tsx │ Editar teléfono, features y estado                                                                             │
+  └──────────────────────────────────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  Para activarlo en producción
+
+  1. Ejecutar supabase/multitenancy.sql en el SQL Editor de Supabase
+  2. Agregar a Railway:
+    - SUPABASE_SERVICE_ROLE_KEY = (tu service role key de Supabase)
+    - DEFAULT_TENANT_SLUG = default (para modo single-tenant o hasta configurar subdominios)
+  3. Para cada cliente nuevo: crearlo desde /superadmin/clients y apuntar su subdominio a Railway

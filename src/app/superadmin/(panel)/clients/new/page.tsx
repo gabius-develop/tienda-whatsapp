@@ -14,6 +14,7 @@ export default function NewClientPage() {
     slug: '',
     whatsapp_phone: '',
     admin_email: '',
+    mercadopago_access_token: '',
     feature_live: false,
     feature_competencia: false,
   })
@@ -134,6 +135,24 @@ export default function NewClientPage() {
               className="block w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
             />
             <p className="text-xs text-gray-600">Con código de país, sin + (ej: 521XXXXXXXXXX para México)</p>
+          </div>
+        </section>
+
+        {/* MercadoPago */}
+        <section className="bg-gray-900 rounded-2xl p-6 border border-gray-800 space-y-4">
+          <h2 className="text-white font-semibold">MercadoPago</h2>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-400">Access Token</label>
+            <input
+              type="password"
+              value={form.mercadopago_access_token}
+              onChange={(e) => handleChange('mercadopago_access_token', e.target.value)}
+              placeholder="APP_USR-... o TEST-..."
+              className="block w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
+            />
+            <p className="text-xs text-gray-600">
+              En MercadoPago → Tu negocio → Credenciales → Access Token de producción
+            </p>
           </div>
         </section>
 
