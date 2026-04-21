@@ -1,19 +1,19 @@
-# Tienda WhatsApp
+# Tienda WhatsApp — Plataforma Multi-Tenant
 
-Tienda online donde los clientes pueden ver productos, agregar al carrito y pagar por **WhatsApp Business** o **MercadoPago**. Incluye panel de administración, transmisiones en vivo, stock en tiempo real y carrusel de imágenes por producto.
+Plataforma SaaS de tiendas online donde cada cliente tiene su propia tienda, recibe pedidos en su propio WhatsApp y cobra con su propia cuenta de MercadoPago. **Un solo servidor, muchos clientes.**
 
 ## Paneles incluidos
 
 | Panel | URL | Para quién |
 |---|---|---|
-| Tienda pública | `/` | Clientes |
-| Admin | `/admin` | Dueño de la tienda |
-| Super Admin | `/superadmin` | Desarrollador |
-| Transmisión en vivo | `/live` | Clientes durante live |
+| Tienda pública | `slug.tudominio.com/` | Clientes del negocio |
+| Admin de tienda | `slug.tudominio.com/admin` | Dueño de cada tienda |
+| Super Admin | `tudominio.com/superadmin` | Tú (el desarrollador) |
+| Transmisión en vivo | `slug.tudominio.com/live` | Clientes durante live |
 
 ## Stack
 
-Next.js 16 · TypeScript · Tailwind CSS · Supabase · Zustand · MercadoPago SDK v2
+Next.js 14 · TypeScript · Tailwind CSS · Supabase · Zustand · MercadoPago SDK v2
 
 ---
 
@@ -35,61 +35,64 @@ npm install
 2. Elige nombre, contraseña de DB y región (ej: `South America - São Paulo`)
 3. Espera ~2 minutos a que esté listo
 
-### 2.2 Ejecutar SQL (en este orden)
+### 2.2 Ejecutar SQL (en este orden exacto)
 
 Ve a **SQL Editor** y ejecuta los archivos uno por uno:
 
 1. `supabase/schema.sql` — tablas principales: products, orders, order_items, storage
 2. `supabase/promotions.sql` — tabla de promociones
-3. `supabase/settings.sql` — configuración de la tienda (nombre, bienvenida, footer)
-4. `supabase/add_product_images.sql` — columna de múltiples imágenes por producto *(solo si el proyecto ya existía antes; instalaciones nuevas no lo necesitan)*
-5. SQL para activar stock en tiempo real:
+3. `supabase/settings.sql` — configuración de tienda (nombre, bienvenida, footer)
+4. `supabase/multitenancy.sql` — **tabla tenants + columnas tenant_id en todas las tablas** _(núcleo del sistema multi-cliente)_
+5. `supabase/add_mercadopago_token.sql` — columna de token MercadoPago por cliente
+6. SQL para activar stock en tiempo real:
 
 ```sql
 ALTER TABLE products REPLICA IDENTITY FULL;
 ALTER PUBLICATION supabase_realtime ADD TABLE products;
 ```
 
+> **Nota:** `supabase/add_product_images.sql` y `supabase/add_was_price.sql` solo se necesitan si actualizas un proyecto que existía antes de esas migraciones. En instalaciones nuevas no hacen falta.
+
 ### 2.3 Obtener credenciales
 
 En Supabase → **Settings → API**:
-- `Project URL` → será `NEXT_PUBLIC_SUPABASE_URL`
-- `anon public` key → será `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
+- `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` _(solo para el servidor, nunca en el frontend)_
 
-### 2.4 Crear usuario admin de la tienda
+### 2.4 Crear usuario admin para cada cliente
 
 En Supabase → **Authentication → Users → Add user**:
-- Email: correo del dueño (ej: `admin@mitienda.com`)
-- Password: contraseña segura
+- Email: correo del dueño de la tienda
+- Password: contraseña
 - Marca **"Auto Confirm User"**
 
-Este usuario accede al panel `/admin` para gestionar productos, pedidos y promociones.
+Repite esto una vez por cada cliente. Luego en el Super Admin podrás vincular ese email al tenant correspondiente.
 
 ---
 
 ## PARTE 3 — Variables de entorno
 
-Crea el archivo `.env.local` en la raíz del proyecto:
+Crea el archivo `.env.local` en la raíz:
 
 ```env
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://XXXXXXXX.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
-
-# WhatsApp Business (código de país + número, sin + ni espacios)
-# México: 521 + 10 dígitos → 5217471234567
-NEXT_PUBLIC_WHATSAPP_PHONE=5217471234567
-
-# MercadoPago — obtener en mercadopago.com.mx → Credenciales
-# Pruebas: token que empieza con TEST-
-# Producción: token real sin TEST-
-MERCADOPAGO_ACCESS_TOKEN=TEST-XXXXXXXXXXXXXXXXXXXX
-
-# URL pública de la app (en local: http://localhost:3000)
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...   # Solo servidor — jamás exponer al cliente
 
 # Contraseña del Super Admin (la defines tú)
 SUPERADMIN_PASSWORD=elige-una-contraseña-segura
+
+# Slug del tenant por defecto (para dev local y modo single-tenant)
+# En producción con subdominios esto se detecta automáticamente del subdominio
+DEFAULT_TENANT_SLUG=default
+
+# Fallback global de WhatsApp (opcional, cada cliente tiene el suyo en la DB)
+NEXT_PUBLIC_WHATSAPP_PHONE=5217471234567
+
+# Fallback global de MercadoPago (opcional, cada cliente tiene el suyo en la DB)
+MERCADOPAGO_ACCESS_TOKEN=TEST-XXXXXXXXXXXXXXXXXXXX
 ```
 
 ### Correr localmente
@@ -98,7 +101,7 @@ SUPERADMIN_PASSWORD=elige-una-contraseña-segura
 npm run dev
 ```
 
-Abre `http://localhost:3000`
+Abre `http://localhost:3000` — usará el tenant con slug `default` (el que creaste en `multitenancy.sql`).
 
 ---
 
@@ -107,14 +110,12 @@ Abre `http://localhost:3000`
 ### 4.1 Subir código a GitHub
 
 ```bash
-git add .
-git commit -m "initial commit"
 git push origin main
 ```
 
 ### 4.2 Crear proyecto en Railway
 
-1. Ve a [railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**
+1. [railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**
 2. Selecciona tu repositorio
 3. Railway detecta automáticamente Next.js
 
@@ -126,63 +127,113 @@ Ve a tu proyecto → **Variables** → agrega:
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | URL de tu proyecto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon key de Supabase |
-| `NEXT_PUBLIC_WHATSAPP_PHONE` | Número WhatsApp (ej: `5217471234567`) |
-| `MERCADOPAGO_ACCESS_TOKEN` | Token de MercadoPago |
-| `NEXT_PUBLIC_APP_URL` | URL de Railway (ej: `https://tienda-xxx.up.railway.app`) |
-| `SUPERADMIN_PASSWORD` | Contraseña para el panel de desarrollador |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key de Supabase |
+| `SUPERADMIN_PASSWORD` | Contraseña para el super admin |
+| `DEFAULT_TENANT_SLUG` | `default` |
+| `NEXT_PUBLIC_WHATSAPP_PHONE` | Número fallback (ej: `5217471234567`) |
+| `MERCADOPAGO_ACCESS_TOKEN` | Token fallback de MercadoPago |
 
-> Cada vez que cambies una variable Railway hace redeploy automático.
+> Las variables de WhatsApp y MercadoPago son fallback global. Cada cliente tiene los suyos configurados en la base de datos desde el Super Admin — esos tienen prioridad.
 
-### 4.4 Obtener dominio
+### 4.4 Configurar dominio y subdominios
 
-Railway → tu servicio → **Settings → Networking → Generate Domain**  
-Copia esa URL y ponla en `NEXT_PUBLIC_APP_URL` (sin `/` al final).
+1. Railway → tu servicio → **Settings → Networking → Custom Domain**
+2. Agrega tu dominio raíz: `tudominio.com`
+3. Agrega un wildcard: `*.tudominio.com`
+4. En tu proveedor de DNS configura ambos apuntando a Railway
 
----
-
-## PARTE 5 — MercadoPago
-
-### Pruebas (sandbox)
-1. [mercadopago.com.mx](https://mercadopago.com.mx) → **Panel de desarrollador → Credenciales de prueba**
-2. Copia el Access Token que empieza con `TEST-`
-
-### Producción (cobros reales)
-1. MercadoPago → **Credenciales de producción**
-2. Copia el Access Token real (no empieza con `TEST-`)
-3. Actualiza `MERCADOPAGO_ACCESS_TOKEN` en Railway
+Con esto, cada cliente en slug `tiendalaura` automáticamente tiene su tienda en `tiendalaura.tudominio.com`.
 
 ---
 
-## PARTE 6 — Accesos a los paneles
+## PARTE 5 — Qué es el Slug y qué poner
 
-### Panel Admin `/admin`
-- URL: `https://tu-dominio.railway.app/admin/login`
-- Credenciales: el usuario creado en el paso 2.4
-- Funciones: productos, pedidos, promociones, estadísticas, transmisión en vivo
+El **slug** es el identificador único de cada cliente y se convierte en su subdominio.
 
-### Panel Super Admin `/superadmin`
-- URL: `https://tu-dominio.railway.app/superadmin/login`
-- Contraseña: la que pusiste en `SUPERADMIN_PASSWORD`
-- Funciones: nombre de tienda, mensaje de bienvenida, footer
+**Ejemplos:**
 
----
+| Nombre del negocio | Slug sugerido | URL de la tienda |
+|---|---|---|
+| Tienda de Ropa Laura | `tienda-laura` | `tienda-laura.tudominio.com` |
+| Abarrotes Don José | `abarrotes-jose` | `abarrotes-jose.tudominio.com` |
+| Farmacia El Ángel | `farmacia-angel` | `farmacia-angel.tudominio.com` |
 
-## PARTE 7 — Transmisión en vivo
-
-El sistema usa **YouTube Live** (gratis, sin tarjeta de crédito, sin anuncios en el embed):
-
-1. Abre [studio.youtube.com](https://studio.youtube.com)
-2. **Crear → Iniciar transmisión en directo**
-3. En **"Más opciones" → "Latencia"** → selecciona **"Ultra baja latencia"** (~2s de delay)
-4. Inicia el stream → copia la URL del video (ej: `youtube.com/watch?v=XXXX`)
-5. En el panel admin → **"En Vivo"** → pega la URL → **"Publicar transmisión"**
-6. Comparte el link `/live` por WhatsApp — los clientes ven el stream con productos al lado
+**Reglas para el slug:**
+- Solo letras **minúsculas**, números y guiones (`-`)
+- Sin espacios, acentos ni caracteres especiales
+- No puede empezar ni terminar con guion
+- Debe ser único — dos clientes no pueden tener el mismo slug
+- Una vez creado **no cambiar**, porque cambia la URL del cliente
 
 ---
 
-## PARTE 8 — Stock en tiempo real
+## PARTE 6 — Gestión de clientes (Super Admin)
 
-El stock funciona así:
+Entra a `tudominio.com/superadmin` con tu contraseña.
+
+### Crear un nuevo cliente
+
+1. **Clientes → Nuevo cliente**
+2. Llena los campos:
+   - **Nombre del negocio** — el slug se genera automáticamente
+   - **Slug** — revisa que quede bien (ver reglas arriba)
+   - **Email del administrador** — el email con el que el cliente entra a `/admin`
+   - **WhatsApp** — número que recibe los pedidos (con código de país, sin `+`)
+   - **MercadoPago Access Token** — token de la cuenta de MercadoPago del cliente
+   - **En Vivo** — activa si el cliente contrata esa función
+   - **Competencia** — activa si el cliente contrata esa función
+3. Guardar → el cliente ya tiene su tienda en `slug.tudominio.com`
+
+### Editar un cliente existente
+
+**Clientes → ícono de lápiz** junto al cliente.
+
+Puedes cambiar en cualquier momento:
+- Número de WhatsApp
+- Token de MercadoPago
+- Activar/desactivar features (En Vivo, Competencia)
+- Desactivar la cuenta (la tienda deja de funcionar)
+
+---
+
+## PARTE 7 — MercadoPago por cliente
+
+Cada cliente cobra con **su propia cuenta de MercadoPago**. El dinero va directo a ellos, tú no tocas los pagos.
+
+### Cómo obtener el token de cada cliente
+
+El cliente entra a su cuenta de MercadoPago:
+1. [mercadopago.com.mx](https://mercadopago.com.mx) → **Tu negocio → Credenciales**
+2. **Pruebas:** Access Token que empieza con `TEST-`
+3. **Producción:** Access Token que empieza con `APP_USR-`
+
+El cliente te da ese token y tú lo pegas en **Super Admin → Clientes → [cliente] → MercadoPago**.
+
+### Cómo funciona el webhook
+
+MercadoPago llama a `slug.tudominio.com/api/payments/webhook` cuando se aprueba un pago. El sistema:
+1. Busca la orden por su ID (`external_reference`)
+2. Identifica a qué tenant pertenece
+3. Verifica el pago con el token de ese tenant
+4. Marca el pedido como `confirmed`
+
+---
+
+## PARTE 8 — Transmisión en vivo
+
+Usa **YouTube Live** (gratis, sin tarjeta de crédito, sin anuncios en el embed):
+
+1. [studio.youtube.com](https://studio.youtube.com) → **Crear → Iniciar transmisión en directo**
+2. En **"Más opciones" → "Latencia"** → selecciona **"Ultra baja latencia"** (~2s de delay)
+3. Inicia el stream → copia la URL del video
+4. En el panel admin → **"En Vivo"** → pega la URL → **"Publicar transmisión"**
+5. Comparte el link `/live` por WhatsApp
+
+> Esta función solo aparece en el panel admin si el Super Admin la activó para ese cliente.
+
+---
+
+## PARTE 9 — Stock en tiempo real
 
 | Momento | Comportamiento |
 |---|---|
@@ -192,37 +243,36 @@ El stock funciona así:
 | Stock llega a 0 | Producto muestra "Agotado", botón desactivado |
 | Admin cancela un pedido | Stock se restaura automáticamente |
 
-El SQL del paso 2.2 activa la sincronización en tiempo real (Supabase Realtime).
-
 ---
 
-## PARTE 9 — Flujo de compra
+## PARTE 10 — Flujo de compra
 
 ```
 Cliente ve productos → Agrega al carrito → Llena datos (nombre, teléfono, dirección)
     │
     ├── "Solo por WhatsApp"
-    │     → Stock descontado → WhatsApp abierto con pedido formateado
+    │     → Stock descontado → WhatsApp del cliente abierto con pedido formateado
     │
     └── "Pagar con MercadoPago"
-          → Overlay de carga → Redirige a MercadoPago → Paga
-          → Pantalla de éxito con cuenta regresiva 5s
-          → WhatsApp abierto con confirmación de pago ✅
+          → Redirige a MercadoPago del cliente → Paga
+          → Pantalla de éxito → WhatsApp con confirmación ✅
 ```
 
 ---
 
-## PARTE 10 — Checklist para nuevo cliente
+## PARTE 11 — Checklist para onboarding de un nuevo cliente
 
-- [ ] Crear proyecto en Supabase
-- [ ] Ejecutar los 4 SQLs (schema, promotions, settings, realtime)
-- [ ] Crear usuario admin con email del cliente
-- [ ] Crear proyecto en Railway conectado al repo de GitHub
-- [ ] Agregar las 6 variables de entorno en Railway
-- [ ] Configurar `NEXT_PUBLIC_WHATSAPP_PHONE` con el número del cliente
-- [ ] Agregar token de MercadoPago del cliente
-- [ ] Entrar a Super Admin → personalizar nombre, bienvenida y footer
-- [ ] Entrar a Admin → cargar los primeros productos con fotos (hasta 8 imágenes por producto)
+- [ ] Ejecutar los SQLs en Supabase (si es instalación nueva)
+- [ ] Crear usuario admin en Supabase Auth con el email del cliente
+- [ ] En Super Admin → **Nuevo cliente**:
+  - [ ] Nombre y slug (ver reglas de slug)
+  - [ ] Email del admin
+  - [ ] Número de WhatsApp (con código de país, sin `+`)
+  - [ ] Token de MercadoPago del cliente
+  - [ ] Activar features según el plan contratado
+- [ ] Apuntar el subdominio `slug.tudominio.com` a Railway en el DNS
+- [ ] Entrar al admin del cliente (`slug.tudominio.com/admin`) y cargar productos
+- [ ] Hacer una compra de prueba y verificar que llega al WhatsApp correcto
 
 ---
 
@@ -232,16 +282,16 @@ Cliente ve productos → Agrega al carrito → Llena datos (nombre, teléfono, d
 |---|---|
 | `supabase/schema.sql` | Tablas principales + RLS + Storage |
 | `supabase/promotions.sql` | Tabla de promociones |
-| `supabase/settings.sql` | Configuración de la tienda |
-| `supabase/add_product_images.sql` | Migración: agrega columna `images[]` a productos existentes |
-| `src/middleware.ts` | Protege rutas `/admin` y `/superadmin` |
-| `src/app/api/orders/route.ts` | Crea pedidos y descuenta stock |
-| `src/app/api/orders/[id]/route.ts` | Cambia estado y restaura stock al cancelar |
-| `src/app/api/payments/create/route.ts` | Crea preferencia MercadoPago |
-| `src/app/api/superadmin/auth/route.ts` | Login superadmin por cookie (sin Supabase) |
-| `src/app/api/live/route.ts` | Gestiona sesión de transmisión en vivo |
-| `nixpacks.toml` | Fuerza Node 20 en Railway |
-| `.env.local.example` | Plantilla de variables de entorno |
+| `supabase/settings.sql` | Configuración de tienda (key-value) |
+| `supabase/multitenancy.sql` | Tabla tenants + columnas tenant_id en todas las tablas |
+| `supabase/add_mercadopago_token.sql` | Columna mercadopago_access_token en tenants |
+| `src/middleware.ts` | Extrae slug del subdominio → header x-tenant-slug |
+| `src/lib/tenant.ts` | getTenantBySlug() con caché de 60s |
+| `src/lib/supabase/service.ts` | Cliente Supabase con service_role (solo superadmin) |
+| `src/app/api/superadmin/tenants/` | CRUD de tenants |
+| `src/app/superadmin/(panel)/clients/` | UI de gestión de clientes |
+| `src/app/api/payments/create/route.ts` | Crea preferencia MercadoPago con token del tenant |
+| `src/app/api/payments/webhook/route.ts` | Verifica pago con token del tenant correcto |
 
 ---
 
@@ -251,27 +301,37 @@ Cliente ve productos → Agrega al carrito → Llena datos (nombre, teléfono, d
 src/
 ├── app/
 │   ├── page.tsx                          ← Tienda pública con realtime
-│   ├── live/page.tsx                     ← Página de transmisión en vivo
+│   ├── live/page.tsx                     ← Transmisión en vivo
 │   ├── cart/page.tsx                     ← Carrito + checkout
-│   ├── payment/success/page.tsx          ← Éxito de pago + countdown WhatsApp
+│   ├── payment/success/page.tsx          ← Éxito de pago + WhatsApp
 │   ├── admin/
 │   │   ├── login/page.tsx
 │   │   └── (protected)/
-│   │       ├── dashboard/page.tsx        ← Estadísticas + ranking
-│   │       ├── products/                 ← CRUD productos
-│   │       ├── orders/page.tsx           ← Gestión de pedidos
-│   │       ├── promotions/               ← CRUD promociones
-│   │       └── live/page.tsx             ← Control de transmisión en vivo
+│   │       ├── dashboard/page.tsx        ← Stats + ranking (por tenant)
+│   │       ├── products/                 ← CRUD productos (por tenant)
+│   │       ├── orders/page.tsx           ← Pedidos (por tenant)
+│   │       ├── promotions/               ← Promociones (por tenant)
+│   │       ├── live/page.tsx             ← Control de transmisión (si feature activa)
+│   │       └── competencia/page.tsx      ← Comparador de precios (si feature activa)
 │   ├── superadmin/
-│   │   ├── login/page.tsx                ← Login por contraseña (sin Supabase)
-│   │   └── (panel)/settings/page.tsx    ← Configuración de tienda
-│   └── api/                              ← REST API completa
+│   │   ├── login/page.tsx
+│   │   └── (panel)/
+│   │       ├── clients/                  ← Gestión de todos los clientes ✨
+│   │       └── settings/page.tsx         ← Config del tenant por defecto
+│   └── api/                              ← REST API (todas las rutas filtran por tenant_id)
 ├── components/
-│   ├── store/                            ← ProductCard, ImageCarousel, FloatingCart, LiveBanner...
-│   ├── cart/                             ← CheckoutForm
-│   ├── admin/                            ← Sidebar, StatsCard...
-│   └── ui/                              ← Button, Input, Badge...
-├── store/cartStore.ts                    ← Zustand con persistencia en localStorage
-├── lib/whatsapp.ts                       ← Generador de mensajes WhatsApp
-└── middleware.ts                         ← Auth guard para admin y superadmin
+│   ├── store/                            ← ProductCard, ImageCarousel, FloatingCart, LiveBanner
+│   ├── cart/                             ← CheckoutForm (lee WhatsApp del tenant)
+│   ├── admin/                            ← Sidebar (muestra/oculta items según features activas)
+│   └── ui/                              ← Button, Input, Badge
+├── lib/
+│   ├── tenant.ts                         ← getTenantBySlug(), getTenantSlugFromRequest()
+│   ├── settings.ts                       ← StoreSettings con whatsapp_phone y feature flags
+│   ├── whatsapp.ts                       ← Generador de mensajes WhatsApp
+│   └── supabase/
+│       ├── client.ts                     ← Cliente browser
+│       ├── server.ts                     ← Cliente servidor (con cookies)
+│       └── service.ts                    ← Cliente service_role (solo superadmin)
+├── store/cartStore.ts                    ← Zustand con persistencia localStorage
+└── middleware.ts                         ← Extrae tenant del subdominio, protege /admin y /superadmin
 ```
