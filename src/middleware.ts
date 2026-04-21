@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+const TENANT_COOKIE = 'x-tenant-slug'
+
 function buildSupabaseClient(request: NextRequest, response: NextResponse) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,51 +19,99 @@ function buildSupabaseClient(request: NextRequest, response: NextResponse) {
   )
 }
 
-function extractTenantSlug(request: NextRequest): string {
-  const host = request.headers.get('host') || ''
-  const hostname = host.split(':')[0] // quitar puerto
-
-  // En local dev: localhost → usa DEFAULT_TENANT_SLUG
+function extractTenantSlugFromSubdomain(hostname: string): string {
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return process.env.DEFAULT_TENANT_SLUG ?? 'default'
   }
 
-  // Si APP_DOMAIN está configurado, usarlo para detectar subdominios de forma precisa
-  // Ej: APP_DOMAIN=tienda-whatsapp-production-099c.up.railway.app
   const appDomain = process.env.APP_DOMAIN
   if (appDomain) {
-    // El dominio principal → tenant por defecto
     if (hostname === appDomain) {
       return process.env.DEFAULT_TENANT_SLUG ?? 'default'
     }
-    // Subdominio del dominio principal → es el slug del tenant
     if (hostname.endsWith('.' + appDomain)) {
       return hostname.slice(0, hostname.length - appDomain.length - 1)
     }
   }
 
-  // Fallback: heurística por número de partes
-  // (funciona para dominios custom tipo cliente.miapp.com)
   const parts = hostname.split('.')
   if (parts.length >= 3 && parts[0] !== 'www') {
     return parts[0]
   }
 
-  // Sin subdominio o www → tenant por defecto
   return process.env.DEFAULT_TENANT_SLUG ?? 'default'
+}
+
+/**
+ * Extrae el slug del tenant:
+ * 1. Si la ruta empieza con /s/[slug], lo toma de la URL y hace rewrite
+ * 2. Si el subdominio coincide con un tenant, lo usa
+ * 3. Si hay cookie x-tenant-slug (de una visita anterior a /s/[slug]), la usa
+ */
+function resolveTenant(request: NextRequest): { slug: string; rewriteTo: string | null } {
+  const { pathname } = request.nextUrl
+
+  // 1. Path-based: /s/[slug] o /s/[slug]/...
+  const match = pathname.match(/^\/s\/([^/]+)(\/.*)?$/)
+  if (match) {
+    const slug = match[1]
+    const restPath = match[2] || '/'
+    return { slug, rewriteTo: restPath }
+  }
+
+  // 2. Subdominio
+  const host = request.headers.get('host') || ''
+  const hostname = host.split(':')[0]
+  const subdomainSlug = extractTenantSlugFromSubdomain(hostname)
+  const defaultSlug = process.env.DEFAULT_TENANT_SLUG ?? 'default'
+
+  if (subdomainSlug !== defaultSlug) {
+    return { slug: subdomainSlug, rewriteTo: null }
+  }
+
+  // 3. Cookie como fallback (persiste el slug después de navegar desde /s/[slug])
+  const cookieSlug = request.cookies.get(TENANT_COOKIE)?.value
+  if (cookieSlug) {
+    return { slug: cookieSlug, rewriteTo: null }
+  }
+
+  return { slug: defaultSlug, rewriteTo: null }
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const { slug, rewriteTo } = resolveTenant(request)
 
-  // Inyectar x-tenant-slug en todos los requests
-  const tenantSlug = extractTenantSlug(request)
   const requestHeaders = new Headers(request.headers)
-  requestHeaders.set('x-tenant-slug', tenantSlug)
+  requestHeaders.set('x-tenant-slug', slug)
+
+  // ── /s/[slug]/* → rewrite a /* y guardar slug en cookie ───────────────────
+  if (rewriteTo !== null) {
+    const targetUrl = request.nextUrl.clone()
+    targetUrl.pathname = rewriteTo
+
+    const response = NextResponse.rewrite(targetUrl, { request: { headers: requestHeaders } })
+    response.cookies.set(TENANT_COOKIE, slug, {
+      path: '/',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24, // 24 horas
+    })
+    return response
+  }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } })
 
-  // ── Admin routes ──────────────────────────────────────────
+  // Refrescar la cookie si el slug es conocido (mantiene la sesión activa)
+  const defaultSlug = process.env.DEFAULT_TENANT_SLUG ?? 'default'
+  if (slug !== defaultSlug) {
+    response.cookies.set(TENANT_COOKIE, slug, {
+      path: '/',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24,
+    })
+  }
+
+  // ── Admin routes ──────────────────────────────────────────────────────────
   if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
     const supabase = buildSupabaseClient(request, response)
     const { data: { user } } = await supabase.auth.getUser()
@@ -69,7 +119,7 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  // ── Super Admin routes ────────────────────────────────────
+  // ── Super Admin routes ────────────────────────────────────────────────────
   if (pathname.startsWith('/superadmin') && pathname !== '/superadmin/login') {
     const token = request.cookies.get('superadmin_auth')?.value
     const superadminPassword = process.env.SUPERADMIN_PASSWORD

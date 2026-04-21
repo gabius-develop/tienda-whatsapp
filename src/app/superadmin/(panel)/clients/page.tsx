@@ -152,8 +152,8 @@ export default function ClientsPage() {
                   <a
                     href={
                       process.env.NEXT_PUBLIC_APP_DOMAIN
-                        ? `https://${tenant.slug}.${process.env.NEXT_PUBLIC_APP_DOMAIN}`
-                        : `http://${tenant.slug}.localhost:3000`
+                        ? `https://${process.env.NEXT_PUBLIC_APP_DOMAIN}/s/${tenant.slug}`
+                        : `http://localhost:3000/s/${tenant.slug}`
                     }
                     target="_blank"
                     rel="noopener noreferrer"
