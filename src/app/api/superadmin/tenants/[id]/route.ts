@@ -107,19 +107,57 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   return NextResponse.json({ temp_password: tempPassword, email: tenant.admin_email })
 }
 
-// DELETE — desactivar tenant (soft delete)
+// DELETE — desactivar tenant (soft delete) o eliminar permanentemente (?permanent=true)
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   if (!(await verifySuperadmin(request))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const permanent = request.nextUrl.searchParams.get('permanent') === 'true'
   const supabase = createServiceClient()
-  const { error } = await supabase
-    .from('tenants')
-    .update({ is_active: false, updated_at: new Date().toISOString() })
-    .eq('id', id)
 
+  if (!permanent) {
+    const { error } = await supabase
+      .from('tenants')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
+
+  // Hard delete: eliminar todos los datos asociados al tenant
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('admin_email')
+    .eq('id', id)
+    .single()
+
+  // Eliminar datos en orden (respetando FK constraints)
+  const steps = [
+    supabase.from('store_settings').delete().eq('tenant_id', id),
+    supabase.from('promotions').delete().eq('tenant_id', id),
+    supabase.from('order_items').delete().eq('tenant_id', id),
+    supabase.from('orders').delete().eq('tenant_id', id),
+    supabase.from('products').delete().eq('tenant_id', id),
+  ]
+  for (const step of steps) {
+    const { error } = await step
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Eliminar usuario de auth si existe
+  if (tenant?.admin_email) {
+    const { data: { users } } = await supabase.auth.admin.listUsers()
+    const authUser = users.find((u) => u.email === tenant.admin_email)
+    if (authUser) {
+      await supabase.auth.admin.deleteUser(authUser.id)
+    }
+  }
+
+  const { error } = await supabase.from('tenants').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  revalidateTag('tenants', {})
   return NextResponse.json({ success: true })
 }

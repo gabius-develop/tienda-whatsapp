@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Save, RefreshCw, Copy, KeyRound, ExternalLink, LayoutDashboard } from 'lucide-react'
+import { ArrowLeft, Save, RefreshCw, Copy, KeyRound, ExternalLink, LayoutDashboard, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 
@@ -21,6 +21,7 @@ export default function EditClientPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [resettingPassword, setResettingPassword] = useState(false)
   const [newTempPassword, setNewTempPassword] = useState<string | null>(null)
   const [slug, setSlug] = useState('')
@@ -106,6 +107,28 @@ export default function EditClientPage() {
       toast.error('Error inesperado')
     } finally {
       setResettingPassword(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    const confirmed = confirm(
+      `¿ELIMINAR PERMANENTEMENTE la cuenta de "${form.name}"?\n\nEsto borrará todos los productos, órdenes, promociones y el usuario de acceso. Esta acción NO se puede deshacer.`
+    )
+    if (!confirmed) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/superadmin/tenants/${id}?permanent=true`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(err.error ?? 'Error al eliminar')
+        return
+      }
+      toast.success(`Cuenta "${form.name}" eliminada permanentemente`)
+      router.push('/superadmin/clients')
+    } catch {
+      toast.error('Error inesperado')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -343,6 +366,22 @@ export default function EditClientPage() {
           <Save className="w-5 h-5" />
           {saving ? 'Guardando...' : 'Guardar cambios'}
         </button>
+
+        {/* Zona de peligro */}
+        <section className="bg-gray-900 rounded-2xl p-6 border border-red-900/50 space-y-3">
+          <h2 className="text-red-400 font-semibold">Zona de peligro</h2>
+          <p className="text-sm text-gray-500">
+            Eliminar la cuenta borra permanentemente todos los productos, órdenes, promociones y el usuario de acceso. Esta acción no se puede deshacer.
+          </p>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-2 bg-red-950 hover:bg-red-900 disabled:opacity-50 text-red-400 hover:text-red-300 font-medium py-2.5 px-4 rounded-xl transition-colors text-sm border border-red-800"
+          >
+            <Trash2 className="w-4 h-4" />
+            {deleting ? 'Eliminando...' : 'Eliminar cuenta permanentemente'}
+          </button>
+        </section>
       </div>
     </div>
   )

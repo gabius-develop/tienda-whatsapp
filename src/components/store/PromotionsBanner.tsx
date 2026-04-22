@@ -35,7 +35,7 @@ export default function PromotionsBanner() {
   return (
     <div className="mb-8">
       <h2 className="text-lg font-semibold text-gray-800 mb-3">Promociones</h2>
-      <div className="relative overflow-hidden rounded-2xl">
+      <div className="relative overflow-hidden rounded-2xl" style={{ minHeight: '160px' }}>
         {promotions.map((promo, i) => {
           const handlePromoClick = () => {
             const parts = [promo.title, promo.discount_label].filter(Boolean).join(' - ')
@@ -46,14 +46,14 @@ export default function PromotionsBanner() {
           return (
             <div
               key={promo.id}
-              className={`transition-opacity duration-500 ${i === current ? 'block' : 'hidden'}`}
+              className={`absolute inset-0 transition-opacity duration-500 ${i === current ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
             >
               <button
                 type="button"
                 onClick={handlePromoClick}
-                className="w-full text-left cursor-pointer group"
+                className="w-full h-full text-left cursor-pointer group"
               >
-                <div className="relative bg-gradient-to-r from-gray-900 to-gray-700 rounded-2xl overflow-hidden min-h-[140px] group-hover:brightness-110 transition-all">
+                <div className="relative bg-gradient-to-r from-gray-900 to-gray-700 h-full min-h-[140px] group-hover:brightness-110 transition-all">
                   {promo.image_url && (
                     <Image
                       src={promo.image_url}
@@ -83,19 +83,20 @@ export default function PromotionsBanner() {
           )
         })}
 
-        {/* Dots navigation */}
-        {promotions.length > 1 && (
-          <div className="flex justify-center gap-1.5 mt-2">
-            {promotions.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setCurrent(i)}
-                className={`w-2 h-2 rounded-full transition-colors ${i === current ? 'bg-green-600' : 'bg-gray-300'}`}
-              />
-            ))}
-          </div>
-        )}
       </div>
+
+      {/* Dots navigation */}
+      {promotions.length > 1 && (
+        <div className="flex justify-center gap-1.5 mt-2">
+          {promotions.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrent(i)}
+              className={`w-2 h-2 rounded-full transition-colors ${i === current ? 'bg-green-600' : 'bg-gray-300'}`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
