@@ -40,33 +40,23 @@ export default function CheckoutForm() {
     resolver: zodResolver(checkoutSchema),
   })
 
-  const saveOrderForSuccessPage = (data: CheckoutFormData) => {
-    // Guardamos los datos en localStorage para mostrarlos en la página de éxito
+  const saveOrderForSuccessPage = (data: CheckoutFormData, verifiedItems?: { product_name: string; quantity: number; unit_price: number }[], verifiedTotal?: number) => {
     localStorage.setItem('last_order', JSON.stringify({
       customerName: data.customerName,
       customerPhone: data.customerPhone,
       customerAddress: data.customerAddress,
-      items: items.map((item) => ({
-        name: item.product.name,
+      items: (verifiedItems ?? items.map((item) => ({ product_name: item.product.name, quantity: item.quantity, unit_price: item.product.price }))).map((item) => ({
+        name: item.product_name,
         quantity: item.quantity,
-        price: item.product.price,
+        price: item.unit_price,
       })),
-      total: totalPrice(),
+      total: verifiedTotal ?? totalPrice(),
     }))
   }
 
   const handleWhatsApp = async (data: CheckoutFormData) => {
     setLoading('whatsapp')
     try {
-      // Guardar orden en DB
-      const orderItems = items.map((item) => ({
-        product_id: item.product.id,
-        product_name: item.product.name,
-        quantity: item.quantity,
-        unit_price: item.product.price,
-        subtotal: item.product.price * item.quantity,
-      }))
-
       const orderRes = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,8 +64,8 @@ export default function CheckoutForm() {
           customer_name: data.customerName,
           customer_phone: data.customerPhone,
           customer_address: data.customerAddress,
-          items: orderItems,
-          total: totalPrice(),
+          // Solo enviamos IDs y cantidades — el servidor determina precios y totales
+          items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
         }),
       })
 
@@ -86,12 +76,15 @@ export default function CheckoutForm() {
         return
       }
 
+      // Usar precios verificados del servidor, no los del carrito
+      const { verified_items, verified_total } = await orderRes.json()
+
       const message = buildWhatsAppMessage({
         customerName: data.customerName,
         customerPhone: data.customerPhone,
         customerAddress: data.customerAddress,
-        items,
-        total: totalPrice(),
+        verifiedItems: verified_items,
+        verifiedTotal: verified_total,
       })
 
       clearCart()
@@ -106,15 +99,7 @@ export default function CheckoutForm() {
   const handleMercadoPago = async (data: CheckoutFormData) => {
     setLoading('mercadopago')
     try {
-      // 1. Guardar orden en DB
-      const orderItems = items.map((item) => ({
-        product_id: item.product.id,
-        product_name: item.product.name,
-        quantity: item.quantity,
-        unit_price: item.product.price,
-        subtotal: item.product.price * item.quantity,
-      }))
-
+      // 1. Guardar orden en DB (el servidor verifica precios)
       const orderRes = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -122,25 +107,24 @@ export default function CheckoutForm() {
           customer_name: data.customerName,
           customer_phone: data.customerPhone,
           customer_address: data.customerAddress,
-          items: orderItems,
-          total: totalPrice(),
+          items: items.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
         }),
       })
 
       const order = await orderRes.json()
 
-      // 2. Guardar datos para la página de éxito
-      saveOrderForSuccessPage(data)
+      // 2. Guardar datos para la página de éxito con precios verificados
+      saveOrderForSuccessPage(data, order.verified_items, order.verified_total)
 
-      // 3. Crear preferencia de pago
+      // 3. Crear preferencia de pago con precios verificados del servidor
       const mpRes = await fetch('/api/payments/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: items.map((item) => ({
-            name: item.product.name,
+          items: (order.verified_items ?? []).map((item: { product_name: string; quantity: number; unit_price: number }) => ({
+            name: item.product_name,
             quantity: item.quantity,
-            unit_price: item.product.price,
+            unit_price: item.unit_price,
           })),
           orderId: order.id,
         }),

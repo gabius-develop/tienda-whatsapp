@@ -1,24 +1,29 @@
-import { CartItem } from '@/types'
 import { formatCurrency } from './utils'
+
+export interface VerifiedOrderItem {
+  product_name: string
+  quantity: number
+  unit_price: number
+  subtotal: number
+}
 
 interface OrderData {
   customerName: string
   customerPhone: string
   customerAddress: string
-  items: CartItem[]
-  total: number
+  verifiedItems: VerifiedOrderItem[]
+  verifiedTotal: number
   paymentUrl?: string
 }
 
 export function buildWhatsAppMessage(data: OrderData): string {
-  const { customerName, customerPhone, customerAddress, items, total, paymentUrl } = data
+  const { customerName, customerPhone, customerAddress, verifiedItems, verifiedTotal, paymentUrl } = data
 
-  const itemsList = items
-    .map(
-      (item) =>
-        `• ${item.product.name} x${item.quantity} = ${formatCurrency(item.product.price * item.quantity)}`
-    )
+  const itemsList = verifiedItems
+    .map((item) => `• ${item.product_name} x${item.quantity} = ${formatCurrency(item.subtotal)}`)
     .join('\n')
+
+  const total = verifiedTotal
 
   const paymentSection = paymentUrl
     ? `\n💳 *Link de pago MercadoPago:*\n${paymentUrl}\n`

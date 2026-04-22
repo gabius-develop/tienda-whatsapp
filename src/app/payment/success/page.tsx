@@ -19,16 +19,17 @@ export default function PaymentSuccessPage() {
   const [waSent, setWaSent] = useState(false)
 
   const buildWaUrl = (order: OrderData) => {
-    const cartItems = order.items.map((item) => ({
-      product: { id: '', name: item.name, price: item.price } as never,
-      quantity: item.quantity,
-    }))
     const message = buildWhatsAppMessage({
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       customerAddress: order.customerAddress,
-      items: cartItems,
-      total: order.total,
+      verifiedItems: order.items.map((item) => ({
+        product_name: item.name,
+        quantity: item.quantity,
+        unit_price: item.price,
+        subtotal: item.price * item.quantity,
+      })),
+      verifiedTotal: order.total,
       paymentUrl: '✅ Pago completado con MercadoPago',
     })
     return getWhatsAppUrl(process.env.NEXT_PUBLIC_WHATSAPP_PHONE!, message)

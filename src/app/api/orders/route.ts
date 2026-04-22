@@ -12,40 +12,59 @@ export async function POST(request: NextRequest) {
 
   const { customer_name, customer_phone, customer_address, items, total } = body
 
-  type OrderItem = {
+  type ClientItem = { product_id: string; quantity: number }
+
+  // 1. Verificar stock Y obtener precios reales del servidor (nunca confiar en precios del cliente)
+  const verifiedItems: {
     product_id: string
     product_name: string
     quantity: number
     unit_price: number
     subtotal: number
-  }
+  }[] = []
 
-  // 1. Verificar stock disponible antes de crear el pedido
-  for (const item of items as OrderItem[]) {
+  for (const item of items as ClientItem[]) {
     if (!item.product_id) continue
     const { data: product } = await supabase
       .from('products')
-      .select('stock, name')
+      .select('id, name, price, stock')
       .eq('id', item.product_id)
       .eq('tenant_id', tenant.id)
       .single()
 
-    if (product && product.stock < item.quantity) {
+    if (!product) {
+      return NextResponse.json(
+        { error: `Producto no encontrado` },
+        { status: 404 }
+      )
+    }
+    if (product.stock < item.quantity) {
       return NextResponse.json(
         { error: `Sin stock suficiente para "${product.name}". Disponibles: ${product.stock}` },
         { status: 409 }
       )
     }
+
+    verifiedItems.push({
+      product_id: product.id,
+      product_name: product.name,
+      quantity: item.quantity,
+      unit_price: product.price,         // precio real de la BD, no del cliente
+      subtotal: product.price * item.quantity,
+    })
   }
 
-  // 2. Crear el pedido
+  // Total calculado en el servidor
+  const verifiedTotal = verifiedItems.reduce((sum, i) => sum + i.subtotal, 0)
+
+  // 2. Crear el pedido con el total verificado
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert([{
       customer_name,
       customer_phone,
       customer_address,
-      total,
+      total: verifiedTotal,              // total real, no el enviado por el cliente
       tenant_id: tenant.id,
       status: 'pending',
       whatsapp_sent_at: new Date().toISOString(),
@@ -57,25 +76,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: orderError.message }, { status: 500 })
   }
 
-  // 3. Crear items del pedido
-  const orderItems = (items as OrderItem[]).map((item) => ({
-    order_id: order.id,
-    tenant_id: tenant.id,
-    product_id: item.product_id,
-    product_name: item.product_name,
-    quantity: item.quantity,
-    unit_price: item.unit_price,
-    subtotal: item.subtotal,
-  }))
-
-  const { error: itemsError } = await supabase.from('order_items').insert(orderItems)
+  // 3. Crear items del pedido con precios verificados
+  const { error: itemsError } = await supabase.from('order_items').insert(
+    verifiedItems.map((item) => ({ ...item, order_id: order.id, tenant_id: tenant.id }))
+  )
   if (itemsError) {
     console.error('Error saving order items:', itemsError)
   }
 
-  // 4. Descontar stock de cada producto
-  for (const item of items as OrderItem[]) {
-    if (!item.product_id) continue
+  // 4. Descontar stock
+  for (const item of verifiedItems) {
     const { data: product } = await supabase
       .from('products')
       .select('stock')
@@ -84,16 +94,16 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (product) {
-      const newStock = Math.max(0, product.stock - item.quantity)
       await supabase
         .from('products')
-        .update({ stock: newStock, updated_at: new Date().toISOString() })
+        .update({ stock: Math.max(0, product.stock - item.quantity), updated_at: new Date().toISOString() })
         .eq('id', item.product_id)
         .eq('tenant_id', tenant.id)
     }
   }
 
-  return NextResponse.json(order, { status: 201 })
+  // Devolver items y total verificados para que el cliente construya el mensaje con precios reales
+  return NextResponse.json({ ...order, verified_items: verifiedItems, verified_total: verifiedTotal }, { status: 201 })
 }
 
 export async function GET(request: NextRequest) {
