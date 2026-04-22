@@ -76,15 +76,32 @@ export async function POST(request: NextRequest) {
   let tempPassword: string | null = null
   if (admin_email) {
     tempPassword = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6).toUpperCase() + '!'
-    const { error: authError } = await supabase.auth.admin.createUser({
+
+    const { error: createError } = await supabase.auth.admin.createUser({
       email: admin_email,
       password: tempPassword,
       email_confirm: true,
     })
-    if (authError && authError.message !== 'User already registered') {
-      // No bloqueamos si el usuario ya existía, solo si hay un error real
-      console.error('Error creando usuario Auth:', authError.message)
-      tempPassword = null
+
+    if (createError) {
+      // El usuario puede ya existir — buscar y actualizar el password
+      const { data: { users } } = await supabase.auth.admin.listUsers()
+      const existingUser = users.find((u) => u.email === admin_email)
+
+      if (existingUser) {
+        const { error: updateError } = await supabase.auth.admin.updateUserById(
+          existingUser.id,
+          { password: tempPassword }
+        )
+        if (updateError) {
+          console.error('Error actualizando password:', updateError.message)
+          tempPassword = null
+        }
+        // Si el update fue exitoso, tempPassword es válido
+      } else {
+        console.error('Error creando usuario Auth:', createError.message)
+        tempPassword = null
+      }
     }
   }
 

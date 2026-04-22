@@ -144,8 +144,9 @@ export default function NewClientPage() {
                   </button>
                 </div>
               ) : (
-                <div className="bg-yellow-950 border border-yellow-800 rounded-xl px-4 py-3">
-                  <p className="text-yellow-400 text-sm">El usuario ya existía en Supabase. Usa su contraseña actual.</p>
+                <div className="bg-red-950 border border-red-800 rounded-xl px-4 py-3">
+                  <p className="text-red-400 text-sm font-medium">No se pudo crear el usuario de acceso</p>
+                  <p className="text-red-500 text-xs mt-1">Ve a la página de edición del cliente y usa "Generar nueva contraseña".</p>
                 </div>
               )}
             </div>
