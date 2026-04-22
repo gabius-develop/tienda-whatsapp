@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, ShoppingCart, Package, Share2 } from 'lucide-react'
-import { Product } from '@/types'
+import { Product, ClothingAttributes } from '@/types'
 import { useCartStore } from '@/store/cartStore'
 import { formatCurrency } from '@/lib/utils'
 import Button from '@/components/ui/Button'
@@ -12,6 +12,74 @@ import CartButton from '@/components/store/CartButton'
 import Badge from '@/components/ui/Badge'
 import ImageCarousel from '@/components/store/ImageCarousel'
 import toast from 'react-hot-toast'
+
+const GENDER_LABELS: Record<string, string> = {
+  hombre: 'Hombre', mujer: 'Mujer', unisex: 'Unisex', niño: 'Niño', niña: 'Niña',
+}
+
+const MEASUREMENT_LABELS: Record<string, string> = {
+  busto: 'Busto / Pecho', cintura: 'Cintura', cadera: 'Cadera', largo: 'Largo', tiro: 'Tiro',
+}
+
+function ClothingAttrs({ attrs, type }: { attrs: ClothingAttributes; type: string }) {
+  if (!attrs || type === 'general' || type === 'electronica') return null
+
+  const hasColors = attrs.colors && attrs.colors.length > 0
+  const hasSizes  = attrs.sizes  && attrs.sizes.length  > 0
+  const hasMeasurements = attrs.measurements && Object.values(attrs.measurements).some(Boolean)
+
+  if (!hasColors && !hasSizes && !attrs.gender && !attrs.material && !hasMeasurements) return null
+
+  return (
+    <div className="mb-6 space-y-4">
+      {attrs.gender && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-gray-500 font-medium">Género:</span>
+          <span className="px-2 py-0.5 bg-gray-100 rounded-full text-gray-700">{GENDER_LABELS[attrs.gender] ?? attrs.gender}</span>
+        </div>
+      )}
+      {attrs.material && (
+        <div className="flex items-start gap-2 text-sm">
+          <span className="text-gray-500 font-medium shrink-0">Material:</span>
+          <span className="text-gray-700">{attrs.material}</span>
+        </div>
+      )}
+      {hasColors && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm font-medium text-gray-700">Colores disponibles</p>
+          <div className="flex flex-wrap gap-2">
+            {attrs.colors!.map((c) => (
+              <span key={c} className="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700">{c}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {hasSizes && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm font-medium text-gray-700">Tallas disponibles</p>
+          <div className="flex flex-wrap gap-2">
+            {attrs.sizes!.map((s) => (
+              <span key={s} className="px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-700">{s}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {hasMeasurements && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm font-medium text-gray-700">Guía de medidas</p>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(attrs.measurements!).filter(([, v]) => v).map(([k, v]) => (
+              <div key={k} className="flex flex-col bg-gray-50 rounded-lg px-3 py-2">
+                <span className="text-xs text-gray-400">{MEASUREMENT_LABELS[k] ?? k}</span>
+                <span className="text-sm font-medium text-gray-700">{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function ProductPage() {
   const { id } = useParams()
@@ -118,6 +186,10 @@ export default function ProductPage() {
                 {product.description && (
                   <p className="text-gray-600 leading-relaxed mb-6">{product.description}</p>
                 )}
+
+                {/* Atributos de ropa/calzado/accesorio */}
+                <ClothingAttrs attrs={product.attributes} type={product.product_type} />
+
                 <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
                   <span>Disponibilidad:</span>
                   {product.stock > 0 ? (

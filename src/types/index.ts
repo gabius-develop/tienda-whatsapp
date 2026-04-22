@@ -1,3 +1,19 @@
+export type ProductType = 'general' | 'ropa' | 'electronica' | 'calzado' | 'accesorio'
+
+export interface ClothingAttributes {
+  colors?: string[]
+  sizes?: string[]
+  material?: string
+  gender?: 'hombre' | 'mujer' | 'unisex' | 'niño' | 'niña'
+  measurements?: {
+    busto?: string
+    cintura?: string
+    cadera?: string
+    largo?: string
+    tiro?: string
+  }
+}
+
 export interface Product {
   id: string
   name: string
@@ -9,6 +25,8 @@ export interface Product {
   category: string | null
   stock: number
   is_active: boolean
+  product_type: ProductType
+  attributes: ClothingAttributes
   created_at: string
   updated_at: string
 }
@@ -100,4 +118,6 @@ export interface ProductFormData {
   is_active: boolean
   image_url: string
   images: string[]
+  product_type: ProductType
+  attributes: ClothingAttributes
 }
