@@ -10,6 +10,7 @@ import SearchBar from '@/components/store/SearchBar'
 import PromotionsBanner from '@/components/store/PromotionsBanner'
 import LiveBanner from '@/components/store/LiveBanner'
 import FloatingCart from '@/components/store/FloatingCart'
+import { StoreColorStyle } from '@/components/store/StoreColorStyle'
 import { Store } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -57,12 +58,13 @@ export default function StorePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <StoreColorStyle color={settings.primary_color} />
       {/* ── APP BAR (móvil) / Header (desktop) ── */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
         {/* Fila 1: logo + carrito */}
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 bg-green-600 rounded-xl flex items-center justify-center shrink-0">
+            <div className="sp-bg w-8 h-8 rounded-xl flex items-center justify-center shrink-0">
               <Store className="w-4 h-4 text-white" />
             </div>
             <h1 className="text-base font-bold text-gray-900 truncate">{settings.store_name}</h1>
@@ -77,14 +79,14 @@ export default function StorePage() {
 
       {/* ── HERO: solo en desktop ── */}
       <div className="hidden sm:block max-w-6xl mx-auto px-4 pt-8">
-        <div className="bg-gradient-to-r from-green-600 to-green-500 rounded-2xl p-8 mb-8 text-white">
+        <div className="sp-bg rounded-2xl p-8 mb-8 text-white">
           <h2 className="text-3xl font-bold mb-2">{settings.welcome_title}</h2>
           <p className="text-green-100">{settings.welcome_subtitle}</p>
         </div>
       </div>
 
       {/* ── HERO MÓVIL: banner compacto ── */}
-      <div className="sm:hidden bg-gradient-to-r from-green-600 to-green-500 px-4 py-4">
+      <div className="sm:hidden sp-bg px-4 py-4">
         <p className="text-white font-semibold text-sm">{settings.welcome_title}</p>
         <p className="text-green-100 text-xs mt-0.5">{settings.welcome_subtitle}</p>
       </div>

@@ -441,3 +441,26 @@ Cada cliente tiene su propio subdominio: cliente.tudominio.com. El middleware ex
     - SUPABASE_SERVICE_ROLE_KEY = (tu service role key de Supabase)
     - DEFAULT_TENANT_SLUG = default (para modo single-tenant o hasta configurar subdominios)
   3. Para cada cliente nuevo: crearlo desde /superadmin/clients y apuntar su subdominio a Railway
+
+  ---                                                                                                                                                                                     
+  El problema (antes)                                                                                                                                                                     
+                                                                                                                                                                                          
+  El cliente enviaba al servidor:                                                                                                                                                         
+  { "unit_price": 0.01, "subtotal": 0.01, "total": 0.01 }                                                                                                                                 
+  El servidor los guardaba sin cuestionar, y el mensaje de WhatsApp se armaba con esos datos manipulados.                                                                                 
+                                                                                                                                                                                          
+  La solución (ahora)                                                                                                                                                                     
+                                                                                                                                                                                          
+  ┌──────────────────┬────────────────────────────────────────────────┬─────────────────────────────────────────────────┐                                                                 
+  │      Punto       │                     Antes                      │                      Ahora                      │
+  ├──────────────────┼────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ Cliente envía    │ product_id, nombre, precio, subtotal, total    │ Solo product_id y quantity                      │
+  ├──────────────────┼────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ Servidor hace    │ Guarda lo que llegó                            │ Consulta precio en BD, calcula subtotal y total │
+  ├──────────────────┼────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ Mensaje WhatsApp │ Se arma con precios del carrito (localStorage) │ Se arma con los datos que devolvió el servidor  │
+  ├──────────────────┼────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ MercadoPago      │ Precio del cliente                             │ Precio verificado del servidor                  │
+  └──────────────────┴────────────────────────────────────────────────┴─────────────────────────────────────────────────┘
+
+  Un cliente podría seguir modificando el localStorage, pero eso ya no afecta ni la orden guardada en BD ni el mensaje que llega a WhatsApp — todo viene del servidor.

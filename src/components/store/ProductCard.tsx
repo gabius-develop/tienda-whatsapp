@@ -79,7 +79,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         <p className="text-xs font-semibold text-gray-800 line-clamp-2 mb-1 leading-snug">{product.name}</p>
 
         <div className="flex items-baseline gap-1 flex-wrap mb-2">
-          <span className="text-sm sm:text-base font-bold text-green-600">{formatCurrency(product.price)}</span>
+          <span className="text-sm sm:text-base font-bold sp-text">{formatCurrency(product.price)}</span>
           {product.was_price && product.was_price > product.price && (
             <span className="text-xs text-gray-400 line-through">{formatCurrency(product.was_price)}</span>
           )}
@@ -92,10 +92,10 @@ export default function ProductCard({ product }: ProductCardProps) {
             disabled={product.stock === 0}
             className={`flex-1 flex items-center justify-center gap-1 rounded-xl py-2.5 text-xs font-bold transition-all duration-150
               ${added
-                ? 'bg-green-700 text-white scale-95'
+                ? 'sp-btn scale-95'
                 : product.stock === 0
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-green-600 text-white active:bg-green-800 active:scale-95'
+                  : 'sp-btn'
               }`}
           >
             {added ? <Check className="w-3.5 h-3.5" /> : <ShoppingCart className="w-3.5 h-3.5" />}

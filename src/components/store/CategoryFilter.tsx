@@ -16,7 +16,7 @@ export default function CategoryFilter({ categories, selected, onSelect }: Categ
         className={cn(
           'px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap shrink-0',
           selected === null
-            ? 'bg-green-600 text-white'
+            ? 'sp-btn'
             : 'bg-white text-gray-700 border border-gray-200 active:bg-gray-100'
         )}
       >
@@ -29,7 +29,7 @@ export default function CategoryFilter({ categories, selected, onSelect }: Categ
           className={cn(
             'px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap shrink-0',
             selected === category
-              ? 'bg-green-600 text-white'
+              ? 'sp-btn'
               : 'bg-white text-gray-700 border border-gray-200 active:bg-gray-100'
           )}
         >

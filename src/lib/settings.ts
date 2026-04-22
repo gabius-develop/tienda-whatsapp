@@ -6,6 +6,7 @@ export interface StoreSettings {
   whatsapp_phone: string
   feature_live: boolean
   feature_competencia: boolean
+  primary_color: string
 }
 
 export const DEFAULT_SETTINGS: StoreSettings = {
@@ -16,6 +17,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   whatsapp_phone: process.env.NEXT_PUBLIC_WHATSAPP_PHONE ?? '',
   feature_live: false,
   feature_competencia: false,
+  primary_color: '#16a34a',
 }
 
 export async function fetchSettings(): Promise<StoreSettings> {
