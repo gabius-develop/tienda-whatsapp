@@ -17,6 +17,11 @@ export default function DashboardPage() {
       .then((res) => res.json())
       .then((data) => {
         setStats(data)
+      })
+      .catch(() => {
+        setStats({ total_orders: 0, total_revenue: 0, total_products: 0, active_products: 0, top_products: [], recent_orders: [] })
+      })
+      .finally(() => {
         setLoading(false)
       })
   }, [])

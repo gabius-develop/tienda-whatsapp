@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Lock, Store } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
@@ -9,7 +8,6 @@ import Input from '@/components/ui/Input'
 import toast from 'react-hot-toast'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -18,17 +16,25 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-    if (error) {
-      toast.error('Credenciales incorrectas')
+      if (error) {
+        toast.error(error.message === 'Email not confirmed'
+          ? 'El correo no está confirmado. Contacta al administrador.'
+          : 'Credenciales incorrectas')
+        return
+      }
+
+      // window.location fuerza un reload completo para que las cookies de sesión
+      // lleguen correctamente en la primera petición al dashboard
+      window.location.href = '/admin/dashboard'
+    } catch {
+      toast.error('Error de conexión. Intenta de nuevo.')
+    } finally {
       setLoading(false)
-      return
     }
-
-    toast.success('Bienvenido al panel de administración')
-    router.push('/admin/dashboard')
   }
 
   return (

@@ -121,8 +121,9 @@ export async function proxy(request: NextRequest) {
   // ── Admin routes ──────────────────────────────────────────────────────────
   if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
     const supabase = buildSupabaseClient(request, response)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.redirect(new URL('/admin/login', request.url))
+    // getSession() lee el JWT local sin hacer petición de red — más rápido y no cuelga
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return NextResponse.redirect(new URL('/admin/login', request.url))
     return response
   }
 
