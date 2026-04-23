@@ -464,3 +464,5 @@ Cada cliente tiene su propio subdominio: cliente.tudominio.com. El middleware ex
   └──────────────────┴────────────────────────────────────────────────┴─────────────────────────────────────────────────┘
 
   Un cliente podría seguir modificando el localStorage, pero eso ya no afecta ni la orden guardada en BD ni el mensaje que llega a WhatsApp — todo viene del servidor.
+
+  contraseña: buk545nrDB12!
