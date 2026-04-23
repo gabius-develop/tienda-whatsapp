@@ -69,8 +69,13 @@ export async function POST(request: NextRequest) {
         const phoneNumberId = (value.metadata as Record<string, string>)?.phone_number_id
         const messages: unknown[] = (value.messages as unknown[]) ?? []
 
+        console.log('[WA webhook] phone_number_id recibido:', phoneNumberId)
+        console.log('[WA webhook] mensajes:', messages.length)
+
         for (const raw of messages) {
           const m = raw as Record<string, unknown>
+
+          console.log('[WA webhook] mensaje tipo:', m.type, '| de:', m.from)
 
           const incoming: IncomingMessage = {
             messageId: m.id as string,

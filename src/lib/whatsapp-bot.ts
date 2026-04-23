@@ -256,18 +256,27 @@ export async function handleIncomingMessage(
   const db = srvClient()
 
   // Buscar configuración del bot por phone_number_id
-  const { data: cfgRow } = await db
+  console.log('[WA bot] buscando config para phone_number_id:', phoneNumberId)
+  const { data: cfgRow, error: cfgError } = await db
     .from('whatsapp_bot_config')
     .select('*, tenants(id)')
     .eq('phone_number_id', phoneNumberId)
     .eq('is_active', true)
     .single()
 
-  if (!cfgRow) return // Bot no configurado o desactivado para este número
+  if (cfgError) console.error('[WA bot] error buscando config:', cfgError.message)
+  if (!cfgRow) {
+    console.log('[WA bot] no se encontró config activa para phone_number_id:', phoneNumberId)
+    return
+  }
 
   const cfg = cfgRow as WaBotConfig & { tenants: { id: string } | null }
   const tenantId = cfg.tenants?.id
-  if (!tenantId) return
+  console.log('[WA bot] tenant encontrado:', tenantId)
+  if (!tenantId) {
+    console.log('[WA bot] no se encontró tenant para la config')
+    return
+  }
 
   // Marcar como leído
   await markAsRead(phoneNumberId, cfg.access_token, msg.messageId)
