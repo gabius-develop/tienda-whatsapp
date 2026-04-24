@@ -60,7 +60,7 @@ export interface WaBotConfig {
   no_orders_message: string
 }
 
-type ConversationState = 'idle' | 'order_lookup'
+type ConversationState = 'idle' | 'order_lookup' | 'support'
 
 export interface IncomingMessage {
   messageId: string
@@ -328,7 +328,8 @@ export async function handleIncomingMessage(
     if (id === 'btn_support') {
       await saveMessage(db, tenantId, msg.from, 'outbound', cfg.support_message)
       await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, cfg.support_message)
-      return setConversationState(db, tenantId, msg.from, 'idle')
+      // Pausar el bot: el admin atenderá manualmente
+      return setConversationState(db, tenantId, msg.from, 'support')
     }
 
     if (id.startsWith('product_')) {
@@ -347,12 +348,20 @@ export async function handleIncomingMessage(
       return handleOrderLookup(cfg, msg.from, msg.text, tenantId, db)
     }
 
+    // Bot pausado: el admin está atendiendo manualmente, no responder
+    if (state === 'support') {
+      console.log('[WA bot] modo soporte activo, no se responde automáticamente a:', msg.from)
+      return
+    }
+
     // Primer mensaje / mensaje libre → bienvenida + menú
     await saveMessage(db, tenantId, msg.from, 'outbound', cfg.welcome_message)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, cfg.welcome_message)
     return sendMainMenu(cfg, msg.from, db, tenantId)
   }
 
-  // ── Cualquier otro tipo de mensaje → menú ─────────────────────────────────
+  // ── Cualquier otro tipo de mensaje → menú (solo si no está en soporte) ────
+  const state = await getConversationState(db, tenantId, msg.from)
+  if (state === 'support') return
   return sendMainMenu(cfg, msg.from, db, tenantId)
 }
