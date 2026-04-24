@@ -101,14 +101,14 @@ export default function WhatsAppBotPage() {
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center">
+      <div className="p-4 md:p-8 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="p-8 max-w-2xl space-y-6">
+    <div className="p-4 md:p-8 max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <Bot className="w-7 h-7 text-green-600" />

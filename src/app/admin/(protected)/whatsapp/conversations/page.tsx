@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { MessageSquare, Phone, RefreshCw, Bot, User, Send } from 'lucide-react'
+import { MessageSquare, Phone, RefreshCw, Bot, User, Send, ArrowLeft } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Conversation {
@@ -65,9 +65,19 @@ export default function ConversationsPage() {
     }
   }
 
+  // Carga inicial y auto-refresh cada 30 segundos
   useEffect(() => {
     loadConversations()
+    const interval = setInterval(loadConversations, 30000)
+    return () => clearInterval(interval)
   }, [])
+
+  // Auto-refresh de mensajes cuando hay una conversación seleccionada
+  useEffect(() => {
+    if (!selectedPhone) return
+    const interval = setInterval(() => loadMessages(selectedPhone), 15000)
+    return () => clearInterval(interval)
+  }, [selectedPhone])
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -106,10 +116,10 @@ export default function ConversationsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-0px)]">
+    <div className="flex h-[calc(100vh-48px)] md:h-screen">
 
       {/* ── Panel izquierdo: lista de conversaciones ── */}
-      <div className="w-80 border-r border-gray-200 flex flex-col bg-white">
+      <div className={`${selectedPhone ? 'hidden md:flex' : 'flex'} w-full md:w-80 border-r border-gray-200 flex-col bg-white`}>
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
           <h1 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
             <MessageSquare className="w-4 h-4 text-green-600" />
@@ -162,21 +172,28 @@ export default function ConversationsPage() {
       </div>
 
       {/* ── Panel derecho: mensajes ── */}
-      <div className="flex-1 flex flex-col bg-gray-50">
+      <div className={`${selectedPhone ? 'flex' : 'hidden md:flex'} flex-1 flex-col bg-gray-50`}>
         {selectedPhone ? (
           <>
             {/* Header */}
             <div className="p-4 bg-white border-b border-gray-200 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+              {/* Botón volver en móvil */}
+              <button
+                onClick={() => setSelectedPhone(null)}
+                className="md:hidden text-gray-400 hover:text-gray-700 transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                 <Phone className="w-4 h-4 text-green-600" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 text-sm">+{selectedPhone}</p>
-                <p className="text-xs text-gray-400">{messages.length} mensajes</p>
+                <p className="text-xs text-gray-400">{messages.length} mensajes · actualiza cada 15s</p>
               </div>
               <button
                 onClick={() => loadMessages(selectedPhone)}
-                className="ml-auto text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 hover:text-gray-600 transition-colors shrink-0"
                 title="Actualizar mensajes"
               >
                 <RefreshCw className="w-4 h-4" />

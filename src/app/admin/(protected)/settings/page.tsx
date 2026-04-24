@@ -85,7 +85,7 @@ export default function AdminSettingsPage() {
   const inputClass = 'block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500'
 
   return (
-    <div className="p-8 max-w-lg space-y-6">
+    <div className="p-4 md:p-8 max-w-lg space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Configuración</h1>
         <p className="text-gray-500 text-sm mt-1">Personaliza tu tienda y gestiona tu cuenta</p>

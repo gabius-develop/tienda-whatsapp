@@ -56,9 +56,9 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
+    <div className="p-4 md:p-8">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Pedidos</h1>
         <p className="text-gray-500 text-sm mt-1">{orders.length} pedidos en total</p>
       </div>
 
@@ -73,48 +73,47 @@ export default function OrdersPage() {
           {orders.map((order) => (
             <div key={order.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               {/* Order Header */}
-              <div className="px-6 py-4 flex flex-wrap items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="font-semibold text-gray-900 text-lg">{order.customer_name}</span>
-                    <Badge variant={ORDER_STATUS_COLORS[order.status]}>
-                      {ORDER_STATUS_LABELS[order.status]}
-                    </Badge>
+              <div className="px-4 md:px-6 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-900">{order.customer_name}</span>
+                      <Badge variant={ORDER_STATUS_COLORS[order.status]}>
+                        {ORDER_STATUS_LABELS[order.status]}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-3 mt-1 text-xs text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <Phone className="w-3 h-3" /> {order.customer_phone}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {order.customer_address}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" /> {formatDate(order.created_at)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-4 mt-1 text-sm text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <Phone className="w-3.5 h-3.5" /> {order.customer_phone}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5" /> {order.customer_address}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" /> {formatDate(order.created_at)}
-                    </span>
-                  </div>
+                  <button
+                    onClick={() => toggleExpand(order.id)}
+                    className="text-gray-400 hover:text-gray-700 transition-colors shrink-0 mt-1"
+                  >
+                    {expanded === order.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                  </button>
                 </div>
 
-                <div className="flex items-center gap-4 flex-shrink-0">
-                  <span className="text-xl font-bold text-green-600">{formatCurrency(order.total)}</span>
-
-                  {/* Status selector */}
+                <div className="flex items-center justify-between mt-3 gap-3">
+                  <span className="text-lg font-bold text-green-600">{formatCurrency(order.total)}</span>
                   <select
                     value={order.status}
                     onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
                     disabled={updatingStatus === order.id}
-                    className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                    className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
                   >
                     {STATUS_OPTIONS.map((s) => (
                       <option key={s} value={s}>{ORDER_STATUS_LABELS[s]}</option>
                     ))}
                   </select>
-
-                  <button
-                    onClick={() => toggleExpand(order.id)}
-                    className="text-gray-400 hover:text-gray-700 transition-colors"
-                  >
-                    {expanded === order.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                  </button>
                 </div>
               </div>
 

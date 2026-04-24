@@ -99,14 +99,14 @@ export default function AdminLivePage() {
 
   if (loading) {
     return (
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <div className="h-48 bg-white rounded-2xl animate-pulse border border-gray-100" />
       </div>
     )
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 md:p-8 max-w-5xl">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
           <Radio className="w-7 h-7 text-red-500" />

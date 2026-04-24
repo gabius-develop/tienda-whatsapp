@@ -660,3 +660,71 @@ Access Token EAAMN845W2rEBRR89zrWFWErJxkZCBHMu8kI9ckaWJonN9AFisVlVcxlZBFZB02r3pb
   https://developers.facebook.com/apps/859764646402737/use_cases/customize/wa-tools/?product_route=whatsapp-business&business_id=1267847711610435&use_case_enum=WHATSAPP_BUSINESS_MESSAGING&selected_tab=wa-tools
   
   EAAMN845W2rEBRTOIafYmPS0TaaCI8hTr4P1e0WZAnKL3PU5yTaZCV5RvnQlnPClb5O8QimFDl6HiuKzHKGWZC45a03sZCfciYKqoZBvUtwnu4iwJCFEgvHOe6IfEzbvZCNfNKwuDmb1rZCfCEr6sXuTbL7vun78HIiUU8odOcYGFCq8QRoT1Tp1eBmruRQp0fVeYgZDZD
+
+   Perfecto, ya veo la página. Te explico todo:                                                                                                                                            
+                                                   
+  ---                                                                                                                                                                                     
+  ¿Dónde cambiar el número en superadmin?                                                                                                                                                 
+                                                                                                                                                                                          
+  Ve a:                                                                                                                                                                                   
+  https://tienda-whatsapp-production-099c.up.railway.app/superadmin/clients                                                                                                               
+  → Clic en "aldea-ofertas"                                                                                                                                                             
+  → Sección "WhatsApp Business"
+  → Cambia el campo a: 5217472542065
+  → Clic en "Guardar cambios"
+
+  ---
+  ¿Los nuevos clientes necesitan crear su propio bot en Facebook?
+
+  Sí, cada cliente necesita su propio número registrado en Meta. Así es como funciona tu negocio (SaaS):
+
+  TÚ (desarrollador/plataforma)
+  ├── Railway: un solo servidor para todas las tiendas
+  ├── Supabase: una sola BD, cada tienda aislada por tenant_id
+  └── Meta: cada cliente tiene su PROPIA app registrada
+            con su PROPIO número de teléfono
+
+  CLIENTE A (aldea-ofertas)
+  ├── Número: +52 7472542065
+  ├── Su Phone Number ID en Meta: 1054305881108032
+  └── Configura su bot en /admin/whatsapp
+
+  CLIENTE B (otra-tienda)
+  ├── Número: +52 XXXXXXXXXX (el suyo)
+  ├── Su Phone Number ID en Meta: el que les da Meta
+  └── Configura su bot en su /admin/whatsapp
+
+  ---
+  Flujo para onboarding de un cliente nuevo
+
+  Cuando contraten tu servicio, los pasos son:
+
+  Tú haces (superadmin):
+  1. Crear cliente en /superadmin/clients/new
+  2. Ingresar el número de WhatsApp del cliente
+  3. Darle acceso al admin (email + contraseña)
+
+  El cliente hace (una sola vez):
+  1. Entrar a developers.facebook.com → crear app → agregar WhatsApp
+  2. Registrar su número de teléfono
+  3. Copiar su Phone Number ID y Access Token
+  4. Entrar a su /admin/whatsapp y pegar esos datos
+  5. Configurar el webhook con la URL que aparece en esa página
+
+  El webhook URL de cada cliente es el mismo (tu servidor en Railway), pero cada cliente tiene su propio verify_token y phone_number_id, así el sistema sabe a cuál tienda pertenece cada
+  mensaje.
+
+  ---
+  ¿Puedes simplificarlo para tus clientes?
+
+  Sí. Puedes ofrecer dos modalidades:
+
+  ┌───────────┬───────────────────────────────────────────────┬───────────────────────────────┐
+  │ Modalidad │              Qué hace el cliente              │          Costo extra          │
+  ├───────────┼───────────────────────────────────────────────┼───────────────────────────────┤
+  │ Básica    │ Solo checkout por WhatsApp (sin bot)          │ Nada, solo poner su número    │
+  ├───────────┼───────────────────────────────────────────────┼───────────────────────────────┤
+  │ Con bot   │ Registrar número en Meta (proceso de ~20 min) │ Requiere cuenta Meta Business │
+  └───────────┴───────────────────────────────────────────────┴───────────────────────────────┘
+
+  La modalidad básica ya funciona sin que el cliente toque Facebook — solo pones su número en el superadmin y listo. El bot es opcional para los que quieran respuestas automáticas.
