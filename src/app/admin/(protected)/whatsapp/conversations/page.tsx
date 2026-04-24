@@ -116,11 +116,32 @@ export default function ConversationsPage() {
 
   // ── Acciones ──────────────────────────────────────────────────────────────
 
+  const markAsRead = (phone: string) => {
+    try {
+      const seen = JSON.parse(localStorage.getItem('wa_seen') ?? '{}')
+      seen[phone] = new Date().toISOString()
+      localStorage.setItem('wa_seen', JSON.stringify(seen))
+      // Notificar al sidebar para que actualice el conteo
+      window.dispatchEvent(new CustomEvent('wa-conversation-read'))
+    } catch { /* silencioso */ }
+  }
+
+  const isUnread = (conv: Conversation) => {
+    if (conv.last_direction !== 'inbound') return false
+    try {
+      const seen = JSON.parse(localStorage.getItem('wa_seen') ?? '{}')
+      const lastSeen = seen[conv.customer_phone]
+      if (!lastSeen) return true
+      return new Date(conv.last_at) > new Date(lastSeen)
+    } catch { return false }
+  }
+
   const handleSelect = (phone: string) => {
     setSelectedPhone(phone)
     setMessages([])
     setReplyText('')
     wasAtBottomRef.current = true
+    markAsRead(phone)
     fetchMessages(phone)
   }
 
@@ -140,6 +161,7 @@ export default function ConversationsPage() {
         return
       }
       setReplyText('')
+      markAsRead(selectedPhone)
       await fetchMessages(selectedPhone)
       fetchConversations(true)
     } catch {
@@ -215,15 +237,20 @@ export default function ConversationsPage() {
                 className={`w-full text-left p-4 border-b border-gray-50 transition-colors ${
                   selectedPhone === conv.customer_phone
                     ? 'bg-green-50 border-l-[3px] border-l-green-500'
-                    : 'border-l-[3px] border-l-transparent hover:bg-gray-50'
+                    : isUnread(conv)
+                      ? 'bg-blue-50/50 border-l-[3px] border-l-blue-400 hover:bg-blue-50'
+                      : 'border-l-[3px] border-l-transparent hover:bg-gray-50'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-gray-900 text-sm flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-gray-400" />
+                  <span className={`text-sm flex items-center gap-1.5 ${isUnread(conv) ? 'font-bold text-gray-900' : 'font-medium text-gray-900'}`}>
+                    <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                     +{conv.customer_phone}
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                    {isUnread(conv) && selectedPhone !== conv.customer_phone && (
+                      <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                    )}
                     {conv.state === 'support' && (
                       <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-medium">
                         soporte
@@ -232,7 +259,7 @@ export default function ConversationsPage() {
                     <span className="text-xs text-gray-400">{timeAgo(conv.last_at)}</span>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 truncate">
+                <p className={`text-xs truncate ${isUnread(conv) ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
                   {conv.last_direction === 'outbound' ? '🤖 ' : '👤 '}
                   {conv.last_message}
                 </p>
