@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { handleIncomingMessage, IncomingMessage } from '@/lib/whatsapp-bot'
+import { handleIncomingMessage, saveMessage, IncomingMessage } from '@/lib/whatsapp-bot'
 
 function srvClient() {
   return createSupabaseClient(
@@ -102,6 +102,20 @@ export async function POST(request: NextRequest) {
               const lr = interactive.list_reply as Record<string, string>
               incoming.interactiveId    = lr?.id
               incoming.interactiveTitle = lr?.title
+            }
+          }
+
+          // Guardar mensaje entrante en historial
+          if (incoming.type === 'text' && incoming.text) {
+            const db = srvClient()
+            const { data: cfg } = await db
+              .from('whatsapp_bot_config')
+              .select('tenant_id')
+              .eq('phone_number_id', phoneNumberId)
+              .eq('is_active', true)
+              .single()
+            if (cfg?.tenant_id) {
+              await saveMessage(db, cfg.tenant_id, incoming.from, 'inbound', incoming.text, incoming.messageId)
             }
           }
 

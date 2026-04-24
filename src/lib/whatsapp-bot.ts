@@ -21,6 +21,29 @@ function srvClient() {
   )
 }
 
+// ─── Guardar mensaje en historial ─────────────────────────────────────────────
+
+export async function saveMessage(
+  db: ReturnType<typeof srvClient>,
+  tenantId: string,
+  customerPhone: string,
+  direction: 'inbound' | 'outbound',
+  content: string,
+  waMessageId?: string,
+) {
+  try {
+    await db.from('whatsapp_messages').insert({
+      tenant_id: tenantId,
+      customer_phone: customerPhone,
+      direction,
+      content,
+      ...(waMessageId ? { wa_message_id: waMessageId } : {}),
+    })
+  } catch (err) {
+    console.error('[WA bot] error guardando mensaje:', err)
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface WaBotConfig {
@@ -89,18 +112,20 @@ async function setConversationState(
 
 // ─── Menú principal ───────────────────────────────────────────────────────────
 
-async function sendMainMenu(cfg: WaBotConfig, to: string) {
-  return sendButtonMessage(
-    cfg.phone_number_id,
-    cfg.access_token,
-    to,
-    cfg.menu_header,
-    [
-      { id: 'btn_products', title: '🛍️ Ver productos' },
-      { id: 'btn_orders',   title: '📦 Mis pedidos' },
-      { id: 'btn_support',  title: '💬 Soporte' },
-    ],
-  )
+async function sendMainMenu(
+  cfg: WaBotConfig,
+  to: string,
+  db: ReturnType<typeof srvClient>,
+  tenantId: string,
+) {
+  const buttons = [
+    { id: 'btn_products', title: '🛍️ Ver productos' },
+    { id: 'btn_orders',   title: '📦 Mis pedidos' },
+    { id: 'btn_support',  title: '💬 Soporte' },
+  ]
+  const content = `${cfg.menu_header}\n[${buttons.map(b => b.title).join(' | ')}]`
+  await saveMessage(db, tenantId, to, 'outbound', content)
+  return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, cfg.menu_header, buttons)
 }
 
 // ─── Flujo: Ver productos ─────────────────────────────────────────────────────
@@ -120,12 +145,9 @@ async function handleProducts(
     .limit(10)
 
   if (!products || products.length === 0) {
-    return sendTextMessage(
-      cfg.phone_number_id,
-      cfg.access_token,
-      to,
-      'Pronto tendremos productos disponibles. ¡Vuelve a visitarnos! 😊',
-    )
+    const text = 'Pronto tendremos productos disponibles. ¡Vuelve a visitarnos! 😊'
+    await saveMessage(db, tenantId, to, 'outbound', text)
+    return sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
   }
 
   // Agrupar por categoría
@@ -144,6 +166,9 @@ async function handleProducts(
       description: formatCurrency(p.price),
     })),
   }))
+
+  const productList = products.map(p => `• ${p.name} — ${formatCurrency(p.price)}`).join('\n')
+  await saveMessage(db, tenantId, to, 'outbound', `🛍️ Nuestros productos:\n${productList}`)
 
   return sendListMessage(
     cfg.phone_number_id,
@@ -173,21 +198,20 @@ async function handleProductDetail(
     .single()
 
   if (!p) {
-    await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, 'Producto no encontrado.')
-    return sendMainMenu(cfg, to)
+    const text = 'Producto no encontrado.'
+    await saveMessage(db, tenantId, to, 'outbound', text)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
+    return sendMainMenu(cfg, to, db, tenantId)
   }
 
   const desc = p.description ? `\n\n_${p.description}_` : ''
   const stock = p.stock > 0 ? `✅ Disponible (${p.stock} en stock)` : '❌ Sin stock'
+  const text = `*${p.name}*\n💰 ${formatCurrency(p.price)}\n${stock}${desc}\n\nPuedes agregarlo al carrito desde nuestra tienda web.`
 
-  await sendTextMessage(
-    cfg.phone_number_id,
-    cfg.access_token,
-    to,
-    `*${p.name}*\n💰 ${formatCurrency(p.price)}\n${stock}${desc}\n\nPuedes agregarlo al carrito desde nuestra tienda web.`,
-  )
+  await saveMessage(db, tenantId, to, 'outbound', text)
+  await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
 
-  return sendMainMenu(cfg, to)
+  return sendMainMenu(cfg, to, db, tenantId)
 }
 
 // ─── Flujo: Mis pedidos ───────────────────────────────────────────────────────
@@ -212,8 +236,9 @@ async function handleOrderLookup(
   await setConversationState(db, tenantId, to, 'idle')
 
   if (!orders || orders.length === 0) {
+    await saveMessage(db, tenantId, to, 'outbound', cfg.no_orders_message)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, cfg.no_orders_message)
-    return sendMainMenu(cfg, to)
+    return sendMainMenu(cfg, to, db, tenantId)
   }
 
   const STATUS: Record<string, string> = {
@@ -237,14 +262,11 @@ async function handleOrderLookup(
     })
     .join('\n\n')
 
-  await sendTextMessage(
-    cfg.phone_number_id,
-    cfg.access_token,
-    to,
-    `Encontré ${orders.length} pedido(s) para ese número:\n\n${list}`,
-  )
+  const text = `Encontré ${orders.length} pedido(s) para ese número:\n\n${list}`
+  await saveMessage(db, tenantId, to, 'outbound', text)
+  await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
 
-  return sendMainMenu(cfg, to)
+  return sendMainMenu(cfg, to, db, tenantId)
 }
 
 // ─── Punto de entrada principal ───────────────────────────────────────────────
@@ -284,17 +306,23 @@ export async function handleIncomingMessage(
   // ── Respuestas a botones e ítems de lista ──────────────────────────────────
   if (msg.type === 'interactive' && msg.interactiveId) {
     const id = msg.interactiveId
+    const title = msg.interactiveTitle ?? id
+
+    // Guardar selección del usuario
+    await saveMessage(db, tenantId, msg.from, 'inbound', `[Botón] ${title}`, msg.messageId)
 
     if (id === 'btn_products') {
       return handleProducts(cfg, msg.from, tenantId, db)
     }
 
     if (id === 'btn_orders') {
+      await saveMessage(db, tenantId, msg.from, 'outbound', cfg.orders_ask_phone)
       await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, cfg.orders_ask_phone)
       return setConversationState(db, tenantId, msg.from, 'order_lookup')
     }
 
     if (id === 'btn_support') {
+      await saveMessage(db, tenantId, msg.from, 'outbound', cfg.support_message)
       await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, cfg.support_message)
       return setConversationState(db, tenantId, msg.from, 'idle')
     }
@@ -304,7 +332,7 @@ export async function handleIncomingMessage(
     }
 
     // Cualquier otra selección → menú
-    return sendMainMenu(cfg, msg.from)
+    return sendMainMenu(cfg, msg.from, db, tenantId)
   }
 
   // ── Mensajes de texto ──────────────────────────────────────────────────────
@@ -316,10 +344,11 @@ export async function handleIncomingMessage(
     }
 
     // Primer mensaje / mensaje libre → bienvenida + menú
+    await saveMessage(db, tenantId, msg.from, 'outbound', cfg.welcome_message)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, cfg.welcome_message)
-    return sendMainMenu(cfg, msg.from)
+    return sendMainMenu(cfg, msg.from, db, tenantId)
   }
 
   // ── Cualquier otro tipo de mensaje → menú ─────────────────────────────────
-  return sendMainMenu(cfg, msg.from)
+  return sendMainMenu(cfg, msg.from, db, tenantId)
 }
