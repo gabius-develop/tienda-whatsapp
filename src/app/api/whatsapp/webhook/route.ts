@@ -20,7 +20,11 @@ export async function GET(request: NextRequest) {
   const token     = searchParams.get('hub.verify_token')
   const challenge = searchParams.get('hub.challenge')
 
+  console.log('[WA webhook GET] url:', request.url)
+  console.log('[WA webhook GET] mode:', mode, '| token:', token, '| challenge:', challenge)
+
   if (mode !== 'subscribe' || !token || !challenge) {
+    console.log('[WA webhook GET] Bad Request - falta algún parámetro')
     return new NextResponse('Bad Request', { status: 400 })
   }
 

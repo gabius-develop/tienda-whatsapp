@@ -465,4 +465,198 @@ Cada cliente tiene su propio subdominio: cliente.tudominio.com. El middleware ex
 
   Un cliente podría seguir modificando el localStorage, pero eso ya no afecta ni la orden guardada en BD ni el mensaje que llega a WhatsApp — todo viene del servidor.
 
-  contraseña: buk545nrDB12!
+  contraseña: buk545nrDB12! 
+
+Phone number ID  1076681668864173 
+Whatsapp Business Acount ID 715558588285840
+Access Token EAAMN845W2rEBRR89zrWFWErJxkZCBHMu8kI9ckaWJonN9AFisVlVcxlZBFZB02r3pbH1N0ax3UbtMDRg8zg2xMfCSasAuvzLgrcy7l56HCOseMqFRTRCa7M8qu3H6i7W2VDFzeR23ZByDfWdOs5ake10X2blsOg6ep3hJvjL9fzU5x8RQSn6PqNZBybIlNa3PvH6w7aFDJBLB8PXx8TpvcdGnYiQMUafXGuOvgbsSYBjRP50nMjNLyUlfOJ2ZAUFZBKekKxqZB61cEQHRwTsdhMVBaXb
+
+
+  Pasos para activarlo
+
+  1. Ejecutar el SQL en Supabase → SQL Editor → pegar supabase/whatsapp_bot.sql
+  2. Crear app en Meta for Developers:
+    - Ir a developers.facebook.com → crear app → agregar producto WhatsApp
+    - Obtener Phone Number ID y Access Token
+  3. Configurar en el admin → /admin/whatsapp:
+    - Pegar el Phone Number ID y Access Token
+    - Elegir un Verify Token (cualquier texto, ej: mi-tienda-2024)
+    - Copiar la URL del webhook que aparece en la página
+  4. Configurar webhook en Meta:
+    - WhatsApp → Configuration → Edit webhook
+    - Pegar la URL del webhook y el Verify Token
+    - Suscribirse al campo messages
+  5. Activar el bot con el toggle y guardar
+
+✻ Churned for 7m 2s
+
+※ recap: Implementé el bot de WhatsApp con botones y flujos automáticos. El siguiente paso es ejecutar `supabase/whatsapp_bot.sql` en el SQL Editor de Supabase para crear las tablas
+  necesarias.
+
+❯ cual es el commit para hacer el deploy                                                                                                                                                  
+
+● Bash(cd "C:\Users\pipio\OneDrive\Escritorio\todo programacion quemando naves\tiendawhatsapp" && git status && git diff --stat HEAD)
+  ⎿  On branch main
+     Your branch is up to date with 'origin/main'.
+     … +20 lines (ctrl+o to expand)
+
+● Corre estos comandos uno por uno en la terminal:
+
+  cd "C:\Users\pipio\OneDrive\Escritorio\todo programacion quemando naves\tiendawhatsapp"
+
+  git add src/app/admin/\(protected\)/whatsapp/ src/app/api/admin/whatsapp/ src/app/api/whatsapp/ src/lib/whatsapp-bot.ts src/lib/whatsapp-cloud.ts supabase/whatsapp_bot.sql
+  src/components/admin/Sidebar.tsx
+
+  git commit -m "feat: agregar bot de WhatsApp con respuestas automáticas y botones interactivos"
+
+  git push origin main
+
+  Railway detectará el push y hará el redeploy automáticamente. Recuerda que también debes ejecutar supabase/whatsapp_bot.sql en el SQL Editor de Supabase antes de activar el bot.
+
+※ recap: Bot de WhatsApp implementado y pusheado. El siguiente paso es ejecutar `supabase/whatsapp_bot.sql` en el SQL Editor de Supabase para crear las tablas necesarias.                
+  
+❯ ya cree la app en facebook developers pero no se de donde saco el number ID y access token                                                                                              
+  https://developers.facebook.com/apps/859764646402737/settings/advanced/?business_id=1267847711610435 en ese link solo encontre el token de cliente                                      
+                                                                                                                                                                                          
+● Ese link es la configuración general de la app. Necesitas ir a la sección de WhatsApp dentro de la misma app. Sigue estos pasos:                                                        
+                                                                                                                                                                                        
+  ---
+  1. Ir a la configuración de WhatsApp                                                                                                                                                    
+   
+  En el menú izquierdo de tu app busca:                                                                                                                                                   
+  WhatsApp → API Setup                                                                                                                                                                  
+
+  La URL directa sería algo así (reemplaza el ID de tu app):
+  https://developers.facebook.com/apps/859764646402737/whatsapp-business/wa-dev-console/
+
+  ---
+  2. Lo que verás en esa pantalla
+
+  Ahí aparecen 3 cosas que necesitas:
+
+  ┌─────────────────────────────────────────────────────────┐
+  │  From: +1 555 XXX XXXX                                  │
+  │  Phone Number ID: 123456789012345   ← CÓPIALO           │
+  │  WhatsApp Business Account ID: 987654321                │
+  │                                                         │
+  │  Temporary access token: EAAxxxxxxx...  ← CÓPIALO      │
+  │  (válido 24 horas, solo para pruebas)                   │
+  └─────────────────────────────────────────────────────────┘
+
+  ---
+  3. Número de teléfono para pruebas
+
+  Meta te da un número de prueba gratuito para probar el bot. No necesitas un número real todavía. En la misma página puedes agregar tu número personal como número de prueba para recibir
+   mensajes.
+
+  ---
+  4. Token permanente (para producción)
+
+  El token temporal dura solo 24 horas. Para producción necesitas un token de sistema permanente:
+
+  1. Ve a Meta Business Suite → Configuración del negocio
+  2. Usuarios del sistema → Agregar usuario del sistema
+  3. Asignarle permiso a la app con rol Admin
+  4. Generar token → selecciona tu app → marca el permiso whatsapp_business_messaging
+  5. Ese token no expira
+
+  ---
+  ¿Ya ves la sección WhatsApp → API Setup en el menú izquierdo de tu app?
+
+❯ no se que poner en esto: Configura un punto de conexión de Webhooks para recibir notificaciones sobre mensajes entrantes y actualizaciones de estado. How to configure Webhooks         
+  Apps will only be able to receive test webhooks sent from the app dashboard while the app is unpublished. No production data, including from app admins, developers or testers, will be 
+   delivered unless the app has been published. Publish your app                                                                                                                          
+  URL de devolución de llamada                                                                                                                                                            
+                                                                                                                                                                                          
+                                                                                                                                                                                          
+● Necesitas la URL de tu app en Railway. ¿Cuál es tu dominio de Railway? Debería verse así:                                                                                               
+
+  https://tienda-whatsapp-production-XXXX.up.railway.app                                                                                                                                  
+   
+  Si no la recuerdas, corre esto en la terminal para verla:                                                                                                                               
+                                                                                                                                                                                        
+  git remote -v
+
+  O entra a https://railway.app → tu proyecto → el servicio → pestaña Settings → sección Networking → ahí aparece el dominio.
+
+  ---
+  Una vez que tengas el dominio, los valores que pones en Meta son:
+
+  URL de devolución de llamada:
+  https://TU-DOMINIO.up.railway.app/api/whatsapp/webhook
+
+  Token de verificación:
+  cualquier texto que tú elijas, por ejemplo: mitienda2024
+
+  ▎ El mismo texto que pongas aquí debes ponerlo después en el campo Verify Token dentro del panel admin /admin/whatsapp de tu tienda.
+
+  ---
+  Dime cuál es tu URL de Railway y te doy la URL exacta para pegar.
+
+❯ tienda-whatsapp-production-099c.up.railway.app                                                                                                                                          
+                                                 
+● Perfecto. Estos son los valores exactos para pegar en Meta:                                                                                                                             
+                                                                                                                                                                                        
+  URL de devolución de llamada:                                                                                                                                                           
+  https://tienda-whatsapp-production-099c.up.railway.app/api/whatsapp/webhook                                                                                                             
+                                                                                                                                                                                          
+  Token de verificación:                                                                                                                                                                
+  mitienda2024
+  (o cualquier texto que quieras, puedes inventar uno)
+
+  ---
+  Después de hacer clic en Verificar y guardar, ve a tu panel admin:
+
+  https://tienda-whatsapp-production-099c.up.railway.app/admin/whatsapp
+
+  Y en el campo Verify Token pon exactamente el mismo texto que usaste arriba.
+
+  ---
+
+  ▎ Importante: Meta solo puede verificar el webhook si ya hiciste el deploy del código nuevo a Railway. ¿Ya hiciste el git push con los commits de antes?
+
+❯ No se pudo validar la URL de devolución de llamada o el token de verificación. Verifica la información proporcionada o vuelve a intentarlo más tarde.                                   
+  (#N/A:WBxP--1820198386-3453481480)                                                                                                                                                      
+                                                                                                                                                                                          
+● El error es porque faltan pasos previos. El webhook necesita que todo esté listo antes de verificar. Sigue este orden:                                                                  
+                                                                                                                                                                                          
+  ---                                                                                                                                                                                     
+  Paso 1 — ¿Ya hiciste el git push?
+                                                                                                                                                                                          
+  Corre esto en la terminal:                                                                                                                                                            
+  git log origin/main --oneline -3
+
+  ¿Aparece el commit feat: agregar bot de WhatsApp... en la lista?
+
+  ---
+  Paso 2 — Ejecutar el SQL en Supabase
+
+  Ve a supabase.com → tu proyecto → SQL Editor → pega y ejecuta el contenido de supabase/whatsapp_bot.sql (el archivo que se creó hoy).
+
+  ---
+  Paso 3 — Guardar la config en el admin ANTES de verificar en Meta
+
+  Ve a:
+  https://tienda-whatsapp-production-099c.up.railway.app/admin/whatsapp
+
+  Llena estos campos y haz clic en Guardar:
+  - Phone Number ID → el que copiaste de Meta
+  - Access Token → el temporal de Meta
+  - Verify Token → mitienda2024
+  - El toggle de activar déjalo apagado por ahora
+
+  ---
+  Paso 4 — Volver a Meta y verificar
+
+  Solo después de guardar en el admin, regresa a Meta e intenta verificar de nuevo con la misma URL y token.
+
+  ---
+
+  eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5eXZ2c2ViZHpmcGJrZGVvZXFqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjM1MTkxNSwiZXhwIjoyMDkxOTI3OTE1fQ.IUpJD3GQEdFraRVds1EVLLNIAmraXUuhMmS3kftn_yg
+
+
+  https://developers.facebook.com/apps/859764646402737/use_cases/customize/api-testing-v2/?use_case_enum=WHATSAPP_BUSINESS_MESSAGING&product_route=whatsapp-business&business_id=1267847711610435&selected_tab=api-testing-v2
+  https://developers.facebook.com/apps/859764646402737/use_cases/customize/wa-configurations-v2/?use_case_enum=WHATSAPP_BUSINESS_MESSAGING&product_route=whatsapp-business&business_id=1267847711610435&selected_tab=wa-configurations-v2
+  https://developers.facebook.com/apps/859764646402737/use_cases/customize/wa-tools/?product_route=whatsapp-business&business_id=1267847711610435&use_case_enum=WHATSAPP_BUSINESS_MESSAGING&selected_tab=wa-tools
+  
+  EAAMN845W2rEBRTOIafYmPS0TaaCI8hTr4P1e0WZAnKL3PU5yTaZCV5RvnQlnPClb5O8QimFDl6HiuKzHKGWZC45a03sZCfciYKqoZBvUtwnu4iwJCFEgvHOe6IfEzbvZCNfNKwuDmb1rZCfCEr6sXuTbL7vun78HIiUU8odOcYGFCq8QRoT1Tp1eBmruRQp0fVeYgZDZD
