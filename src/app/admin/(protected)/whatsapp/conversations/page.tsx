@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { MessageSquare, Phone, RefreshCw, Bot, User } from 'lucide-react'
+import { MessageSquare, Phone, RefreshCw, Bot, User, Send } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 interface Conversation {
   customer_phone: string
@@ -34,6 +35,8 @@ export default function ConversationsPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMsgs, setLoadingMsgs] = useState(false)
+  const [replyText, setReplyText] = useState('')
+  const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const loadConversations = async () => {
@@ -74,7 +77,32 @@ export default function ConversationsPage() {
 
   const handleSelect = (phone: string) => {
     setSelectedPhone(phone)
+    setReplyText('')
     loadMessages(phone)
+  }
+
+  const handleSend = async () => {
+    if (!selectedPhone || !replyText.trim() || sending) return
+    setSending(true)
+    try {
+      const res = await fetch('/api/admin/whatsapp/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: selectedPhone, message: replyText.trim() }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(err.error ?? 'Error al enviar')
+        return
+      }
+      setReplyText('')
+      await loadMessages(selectedPhone)
+      await loadConversations()
+    } catch {
+      toast.error('Error inesperado')
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -201,6 +229,35 @@ export default function ConversationsPage() {
                 ))
               )}
               <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input de respuesta */}
+            <div className="p-3 bg-white border-t border-gray-200 flex items-end gap-2">
+              <textarea
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSend()
+                  }
+                }}
+                placeholder="Escribe un mensaje... (Enter para enviar, Shift+Enter para nueva línea)"
+                rows={2}
+                className="flex-1 resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+              />
+              <button
+                onClick={handleSend}
+                disabled={sending || !replyText.trim()}
+                className="flex items-center justify-center w-10 h-10 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white rounded-xl transition-colors shrink-0"
+                title="Enviar mensaje"
+              >
+                {sending ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </button>
             </div>
           </>
         ) : (

@@ -189,6 +189,7 @@ async function handleProductDetail(
   productId: string,
   tenantId: string,
   db: ReturnType<typeof srvClient>,
+  storeUrl: string,
 ) {
   const { data: p } = await db
     .from('products')
@@ -206,7 +207,8 @@ async function handleProductDetail(
 
   const desc = p.description ? `\n\n_${p.description}_` : ''
   const stock = p.stock > 0 ? `✅ Disponible (${p.stock} en stock)` : '❌ Sin stock'
-  const text = `*${p.name}*\n💰 ${formatCurrency(p.price)}\n${stock}${desc}\n\nPuedes agregarlo al carrito desde nuestra tienda web.`
+  const storeLink = storeUrl ? `\n\n🛒 Agregar al carrito:\n${storeUrl}` : ''
+  const text = `*${p.name}*\n💰 ${formatCurrency(p.price)}\n${stock}${desc}${storeLink}`
 
   await saveMessage(db, tenantId, to, 'outbound', text)
   await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
@@ -281,7 +283,7 @@ export async function handleIncomingMessage(
   console.log('[WA bot] buscando config para phone_number_id:', phoneNumberId)
   const { data: cfgRow, error: cfgError } = await db
     .from('whatsapp_bot_config')
-    .select('*, tenants(id)')
+    .select('*, tenants(id, slug)')
     .eq('phone_number_id', phoneNumberId)
     .eq('is_active', true)
     .single()
@@ -292,8 +294,10 @@ export async function handleIncomingMessage(
     return
   }
 
-  const cfg = cfgRow as WaBotConfig & { tenants: { id: string } | null }
+  const cfg = cfgRow as WaBotConfig & { tenants: { id: string; slug: string } | null }
   const tenantId = cfg.tenants?.id
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+  const storeUrl = cfg.tenants?.slug ? `${appUrl}/s/${cfg.tenants.slug}` : appUrl
   console.log('[WA bot] tenant encontrado:', tenantId)
   if (!tenantId) {
     console.log('[WA bot] no se encontró tenant para la config')
@@ -328,7 +332,7 @@ export async function handleIncomingMessage(
     }
 
     if (id.startsWith('product_')) {
-      return handleProductDetail(cfg, msg.from, id.replace('product_', ''), tenantId, db)
+      return handleProductDetail(cfg, msg.from, id.replace('product_', ''), tenantId, db, storeUrl)
     }
 
     // Cualquier otra selección → menú

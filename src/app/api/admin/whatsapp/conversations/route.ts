@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getTenantBySlug, getTenantSlugFromRequest } from '@/lib/tenant'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { sendTextMessage } from '@/lib/whatsapp-cloud'
+import { saveMessage } from '@/lib/whatsapp-bot'
 
 function srvClient() {
   return createSupabaseClient(
@@ -74,4 +76,48 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json(Array.from(byPhone.values()))
+}
+
+/**
+ * POST /api/admin/whatsapp/conversations
+ * Body: { to: string, message: string }
+ * Envía un mensaje desde el bot al número indicado
+ */
+export async function POST(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const tenantSlug = getTenantSlugFromRequest(request)
+  const tenant = await getTenantBySlug(tenantSlug)
+  if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+
+  const { to, message } = await request.json()
+  if (!to || !message?.trim()) {
+    return NextResponse.json({ error: 'to y message son requeridos' }, { status: 400 })
+  }
+
+  const db = srvClient()
+
+  // Obtener credenciales del bot
+  const { data: cfg } = await db
+    .from('whatsapp_bot_config')
+    .select('phone_number_id, access_token, is_active')
+    .eq('tenant_id', tenant.id)
+    .single()
+
+  if (!cfg || !cfg.is_active) {
+    return NextResponse.json({ error: 'El bot no está activo o no está configurado' }, { status: 400 })
+  }
+
+  // Enviar el mensaje
+  const ok = await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, message.trim())
+  if (!ok) {
+    return NextResponse.json({ error: 'Error al enviar el mensaje por WhatsApp' }, { status: 500 })
+  }
+
+  // Guardar en historial
+  await saveMessage(db, tenant.id, to, 'outbound', message.trim())
+
+  return NextResponse.json({ success: true })
 }
