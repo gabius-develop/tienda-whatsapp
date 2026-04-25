@@ -1,16 +1,42 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Menu, Store } from 'lucide-react'
 import Sidebar from '@/components/admin/Sidebar'
+
+function computeUnreadFromData(convs: { customer_phone: string; last_direction: string; last_at: string }[]) {
+  try {
+    const seen: Record<string, string> = JSON.parse(localStorage.getItem('wa_seen') ?? '{}')
+    return convs.filter(c =>
+      c.last_direction === 'inbound' &&
+      (!seen[c.customer_phone] || new Date(c.last_at) > new Date(seen[c.customer_phone]))
+    ).length
+  } catch { return 0 }
+}
 
 export default function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
 
+  const refreshUnread = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/whatsapp/conversations')
+      const data = await res.json()
+      if (Array.isArray(data)) setUnreadCount(computeUnreadFromData(data))
+    } catch { /* silencioso */ }
+  }, [])
+
+  useEffect(() => {
+    refreshUnread()
+    const interval = setInterval(refreshUnread, 30000)
+    const onRead = () => refreshUnread()
+    window.addEventListener('wa-conversation-read', onRead)
+    return () => { clearInterval(interval); window.removeEventListener('wa-conversation-read', onRead) }
+  }, [refreshUnread])
+
   return (
     <div className="flex min-h-screen">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onUnreadChange={setUnreadCount} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header móvil */}
@@ -21,7 +47,7 @@ export default function ProtectedAdminLayout({ children }: { children: React.Rea
           >
             <Menu className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 animate-pulse">
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 animate-pulse">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}

@@ -274,42 +274,61 @@ export default function ConversationsPage() {
         {selectedPhone ? (
           <>
             {/* Header */}
-            <div className="px-4 py-3 bg-white border-b border-gray-200 flex items-center gap-3">
-              <button
-                onClick={() => setSelectedPhone(null)}
-                className="md:hidden text-gray-400 hover:text-gray-700 shrink-0"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                <Phone className="w-4 h-4 text-green-600" />
+            <div className="bg-white border-b border-gray-200">
+              {/* Fila principal */}
+              <div className="px-4 py-3 flex items-center gap-3">
+                <button
+                  onClick={() => setSelectedPhone(null)}
+                  className="md:hidden text-gray-400 hover:text-gray-700 shrink-0"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                  <Phone className="w-4 h-4 text-green-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 text-sm">+{selectedPhone}</p>
+                  <p className="text-xs text-gray-400">{messages.length} mensajes</p>
+                </div>
+                {/* Toggle bot — solo en desktop */}
+                <button
+                  onClick={handleToggleState}
+                  disabled={togglingState}
+                  className={`hidden sm:flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0 ${
+                    isSupport
+                      ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {isSupport
+                    ? <><CirclePlay className="w-3.5 h-3.5" /> Reactivar bot</>
+                    : <><BotOff className="w-3.5 h-3.5" /> Pausar bot</>
+                  }
+                </button>
+                <button
+                  onClick={() => { wasAtBottomRef.current = true; fetchMessages(selectedPhone) }}
+                  className="text-gray-400 hover:text-gray-600 shrink-0"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 text-sm">+{selectedPhone}</p>
-                <p className="text-xs text-gray-400">{messages.length} mensajes</p>
+              {/* Fila de acción — solo móvil */}
+              <div className="sm:hidden px-4 pb-2">
+                <button
+                  onClick={handleToggleState}
+                  disabled={togglingState}
+                  className={`w-full flex items-center justify-center gap-2 text-xs font-semibold py-2 rounded-lg transition-colors ${
+                    isSupport
+                      ? 'bg-orange-100 text-orange-700 active:bg-orange-200'
+                      : 'bg-gray-100 text-gray-700 active:bg-gray-200'
+                  }`}
+                >
+                  {isSupport
+                    ? <><CirclePlay className="w-4 h-4" /> Reactivar bot</>
+                    : <><BotOff className="w-4 h-4" /> Pausar bot</>
+                  }
+                </button>
               </div>
-              {/* Toggle bot */}
-              <button
-                onClick={handleToggleState}
-                disabled={togglingState}
-                title={isSupport ? 'Reactivar bot' : 'Pausar bot (atender manualmente)'}
-                className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors shrink-0 ${
-                  isSupport
-                    ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {isSupport
-                  ? <><CirclePlay className="w-3.5 h-3.5" /><span className="hidden sm:inline">Reactivar bot</span></>
-                  : <><BotOff className="w-3.5 h-3.5" /><span className="hidden sm:inline">Pausar bot</span></>
-                }
-              </button>
-              <button
-                onClick={() => { wasAtBottomRef.current = true; fetchMessages(selectedPhone) }}
-                className="text-gray-400 hover:text-gray-600 shrink-0"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
             </div>
 
             {/* Banner modo soporte */}
