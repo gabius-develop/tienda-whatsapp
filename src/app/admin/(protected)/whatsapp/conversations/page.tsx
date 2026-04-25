@@ -293,15 +293,15 @@ export default function ConversationsPage() {
                 onClick={handleToggleState}
                 disabled={togglingState}
                 title={isSupport ? 'Reactivar bot' : 'Pausar bot (atender manualmente)'}
-                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0 ${
+                className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors shrink-0 ${
                   isSupport
                     ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 {isSupport
-                  ? <><CirclePlay className="w-3.5 h-3.5" /> Reactivar bot</>
-                  : <><BotOff className="w-3.5 h-3.5" /> Pausar bot</>
+                  ? <><CirclePlay className="w-3.5 h-3.5" /><span className="hidden sm:inline">Reactivar bot</span></>
+                  : <><BotOff className="w-3.5 h-3.5" /><span className="hidden sm:inline">Pausar bot</span></>
                 }
               </button>
               <button

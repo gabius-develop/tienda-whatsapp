@@ -33,9 +33,10 @@ function computeUnread(convs: { customer_phone: string; last_direction: string; 
 interface SidebarProps {
   open: boolean
   onClose: () => void
+  onUnreadChange?: (count: number) => void
 }
 
-export default function Sidebar({ open, onClose }: SidebarProps) {
+export default function Sidebar({ open, onClose, onUnreadChange }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [featureLive, setFeatureLive] = useState(false)
@@ -58,9 +59,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     try {
       const res = await fetch('/api/admin/whatsapp/conversations')
       const data = await res.json()
-      if (Array.isArray(data)) setUnreadCount(computeUnread(data))
+      if (Array.isArray(data)) {
+        const count = computeUnread(data)
+        setUnreadCount(count)
+        onUnreadChange?.(count)
+      }
     } catch { /* silencioso */ }
-  }, [])
+  }, [onUnreadChange])
 
   useEffect(() => {
     refreshUnread()
