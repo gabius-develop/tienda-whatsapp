@@ -16,9 +16,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 })
   }
 
+  const folder = (request.nextUrl.searchParams.get('folder') ?? 'products').replace(/[^a-z0-9_-]/gi, '')
   const fileExt = file.name.split('.').pop()
   const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`
-  const filePath = `products/${fileName}`
+  const filePath = `${folder}/${fileName}`
 
   const arrayBuffer = await file.arrayBuffer()
   const buffer = new Uint8Array(arrayBuffer)

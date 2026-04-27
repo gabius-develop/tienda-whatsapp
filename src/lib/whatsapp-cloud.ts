@@ -160,6 +160,29 @@ export function sendListMessage(
   })
 }
 
+/**
+ * Envía una imagen con caption opcional.
+ * La URL de la imagen debe ser públicamente accesible.
+ */
+export function sendImageMessage(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  imageUrl: string,
+  caption?: string,
+): Promise<boolean> {
+  return post(phoneNumberId, accessToken, {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'image',
+    image: {
+      link: imageUrl,
+      ...(caption ? { caption } : {}),
+    },
+  })
+}
+
 /** Marca un mensaje como leído (muestra las palomitas azules) */
 export function markAsRead(
   phoneNumberId: string,

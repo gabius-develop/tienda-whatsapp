@@ -7,6 +7,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { formatCurrency } from './utils'
 import {
   sendTextMessage,
+  sendImageMessage,
   sendButtonMessage,
   sendListMessage,
   markAsRead,
@@ -54,6 +55,7 @@ export interface WaBotConfig {
   verify_token: string
   is_active: boolean
   welcome_message: string
+  welcome_image_url?: string | null
   menu_header: string
   orders_ask_phone: string
   support_message: string
@@ -69,6 +71,17 @@ export interface IncomingMessage {
   text?: string
   interactiveId?: string    // ID del botón o ítem de lista seleccionado
   interactiveTitle?: string
+}
+
+interface FlowStep {
+  id: string
+  parent_id: string | null
+  button_id: string
+  button_title: string
+  step_type: string
+  response_text: string | null
+  response_image_url: string | null
+  sort_order: number
 }
 
 // ─── Conversación ─────────────────────────────────────────────────────────────
@@ -110,7 +123,55 @@ async function setConversationState(
   )
 }
 
-// ─── Menú principal ───────────────────────────────────────────────────────────
+// ─── Flujos personalizados ────────────────────────────────────────────────────
+
+async function getTopLevelFlowSteps(
+  db: ReturnType<typeof srvClient>,
+  tenantId: string,
+): Promise<FlowStep[]> {
+  const { data } = await db
+    .from('bot_flow_steps')
+    .select('id, parent_id, button_id, button_title, step_type, response_text, response_image_url, sort_order')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .is('parent_id', null)
+    .order('sort_order', { ascending: true })
+    .limit(3)
+  return data ?? []
+}
+
+async function getChildFlowSteps(
+  db: ReturnType<typeof srvClient>,
+  tenantId: string,
+  parentId: string,
+): Promise<FlowStep[]> {
+  const { data } = await db
+    .from('bot_flow_steps')
+    .select('id, parent_id, button_id, button_title, step_type, response_text, response_image_url, sort_order')
+    .eq('tenant_id', tenantId)
+    .eq('parent_id', parentId)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .limit(3)
+  return data ?? []
+}
+
+async function getFlowStepByButtonId(
+  db: ReturnType<typeof srvClient>,
+  tenantId: string,
+  buttonId: string,
+): Promise<FlowStep | null> {
+  const { data } = await db
+    .from('bot_flow_steps')
+    .select('id, parent_id, button_id, button_title, step_type, response_text, response_image_url, sort_order')
+    .eq('tenant_id', tenantId)
+    .eq('button_id', buttonId)
+    .eq('is_active', true)
+    .single()
+  return data ?? null
+}
+
+// ─── Menú principal (hardcodeado, fallback) ───────────────────────────────────
 
 async function sendMainMenu(
   cfg: WaBotConfig,
@@ -126,6 +187,53 @@ async function sendMainMenu(
   const content = `${cfg.menu_header}\n[${buttons.map(b => b.title).join(' | ')}]`
   await saveMessage(db, tenantId, to, 'outbound', content)
   return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, cfg.menu_header, buttons)
+}
+
+// ─── Menú principal dinámico (desde flujos configurados) ─────────────────────
+
+async function sendMainMenuDynamic(
+  cfg: WaBotConfig,
+  to: string,
+  db: ReturnType<typeof srvClient>,
+  tenantId: string,
+) {
+  const topSteps = await getTopLevelFlowSteps(db, tenantId)
+
+  if (topSteps.length === 0) {
+    // Sin flujos configurados → usar menú por defecto
+    return sendMainMenu(cfg, to, db, tenantId)
+  }
+
+  const buttons = topSteps.map((s) => ({
+    id: s.button_id,
+    title: s.button_title.substring(0, 20),
+  }))
+
+  const content = `${cfg.menu_header}\n[${buttons.map(b => b.title).join(' | ')}]`
+  await saveMessage(db, tenantId, to, 'outbound', content)
+  return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, cfg.menu_header, buttons)
+}
+
+// ─── Enviar bienvenida (texto o imagen + texto) ───────────────────────────────
+
+async function sendWelcome(
+  cfg: WaBotConfig,
+  to: string,
+  db: ReturnType<typeof srvClient>,
+  tenantId: string,
+) {
+  if (cfg.welcome_image_url) {
+    await saveMessage(db, tenantId, to, 'outbound', `[Imagen] ${cfg.welcome_message}`)
+    return sendImageMessage(
+      cfg.phone_number_id,
+      cfg.access_token,
+      to,
+      cfg.welcome_image_url,
+      cfg.welcome_message,
+    )
+  }
+  await saveMessage(db, tenantId, to, 'outbound', cfg.welcome_message)
+  return sendTextMessage(cfg.phone_number_id, cfg.access_token, to, cfg.welcome_message)
 }
 
 // ─── Flujo: Ver productos ─────────────────────────────────────────────────────
@@ -202,7 +310,7 @@ async function handleProductDetail(
     const text = 'Producto no encontrado.'
     await saveMessage(db, tenantId, to, 'outbound', text)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
-    return sendMainMenu(cfg, to, db, tenantId)
+    return sendMainMenuDynamic(cfg, to, db, tenantId)
   }
 
   const desc = p.description ? `\n\n_${p.description}_` : ''
@@ -213,7 +321,7 @@ async function handleProductDetail(
   await saveMessage(db, tenantId, to, 'outbound', text)
   await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
 
-  return sendMainMenu(cfg, to, db, tenantId)
+  return sendMainMenuDynamic(cfg, to, db, tenantId)
 }
 
 // ─── Flujo: Mis pedidos ───────────────────────────────────────────────────────
@@ -240,7 +348,7 @@ async function handleOrderLookup(
   if (!orders || orders.length === 0) {
     await saveMessage(db, tenantId, to, 'outbound', cfg.no_orders_message)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, cfg.no_orders_message)
-    return sendMainMenu(cfg, to, db, tenantId)
+    return sendMainMenuDynamic(cfg, to, db, tenantId)
   }
 
   const STATUS: Record<string, string> = {
@@ -268,7 +376,43 @@ async function handleOrderLookup(
   await saveMessage(db, tenantId, to, 'outbound', text)
   await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
 
-  return sendMainMenu(cfg, to, db, tenantId)
+  return sendMainMenuDynamic(cfg, to, db, tenantId)
+}
+
+// ─── Flujo: Botón personalizado ───────────────────────────────────────────────
+
+async function handleCustomFlow(
+  cfg: WaBotConfig,
+  to: string,
+  step: FlowStep,
+  tenantId: string,
+  db: ReturnType<typeof srvClient>,
+) {
+  // Enviar respuesta configurada
+  if (step.response_image_url) {
+    const caption = step.response_text ?? undefined
+    await saveMessage(db, tenantId, to, 'outbound', `[Imagen] ${caption ?? ''}`)
+    await sendImageMessage(cfg.phone_number_id, cfg.access_token, to, step.response_image_url, caption)
+  } else if (step.response_text) {
+    await saveMessage(db, tenantId, to, 'outbound', step.response_text)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, step.response_text)
+  }
+
+  // ¿Tiene sub-botones?
+  const children = await getChildFlowSteps(db, tenantId, step.id)
+  if (children.length > 0) {
+    const buttons = children.map((c) => ({
+      id: c.button_id,
+      title: c.button_title.substring(0, 20),
+    }))
+    const bodyText = cfg.menu_header
+    const content = `[Sub-menú] ${buttons.map(b => b.title).join(' | ')}`
+    await saveMessage(db, tenantId, to, 'outbound', content)
+    return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, bodyText, buttons)
+  }
+
+  // Sin hijos → volver al menú principal
+  return sendMainMenuDynamic(cfg, to, db, tenantId)
 }
 
 // ─── Punto de entrada principal ───────────────────────────────────────────────
@@ -315,6 +459,15 @@ export async function handleIncomingMessage(
     // Guardar selección del usuario
     await saveMessage(db, tenantId, msg.from, 'inbound', `[Botón] ${title}`, msg.messageId)
 
+    // Botón personalizado de un flujo configurado
+    if (id.startsWith('flow_')) {
+      const step = await getFlowStepByButtonId(db, tenantId, id)
+      if (step) {
+        return handleCustomFlow(cfg, msg.from, step, tenantId, db)
+      }
+      return sendMainMenuDynamic(cfg, msg.from, db, tenantId)
+    }
+
     if (id === 'btn_products') {
       return handleProducts(cfg, msg.from, tenantId, db)
     }
@@ -337,7 +490,7 @@ export async function handleIncomingMessage(
     }
 
     // Cualquier otra selección → menú
-    return sendMainMenu(cfg, msg.from, db, tenantId)
+    return sendMainMenuDynamic(cfg, msg.from, db, tenantId)
   }
 
   // ── Mensajes de texto ──────────────────────────────────────────────────────
@@ -355,13 +508,13 @@ export async function handleIncomingMessage(
     }
 
     // Primer mensaje / mensaje libre → bienvenida + menú
-    await saveMessage(db, tenantId, msg.from, 'outbound', cfg.welcome_message)
-    await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, cfg.welcome_message)
-    return sendMainMenu(cfg, msg.from, db, tenantId)
+    await saveMessage(db, tenantId, msg.from, 'inbound', msg.text, msg.messageId)
+    await sendWelcome(cfg, msg.from, db, tenantId)
+    return sendMainMenuDynamic(cfg, msg.from, db, tenantId)
   }
 
   // ── Cualquier otro tipo de mensaje → menú (solo si no está en soporte) ────
   const state = await getConversationState(db, tenantId, msg.from)
   if (state === 'support') return
-  return sendMainMenu(cfg, msg.from, db, tenantId)
+  return sendMainMenuDynamic(cfg, msg.from, db, tenantId)
 }
