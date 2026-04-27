@@ -83,7 +83,7 @@ export function sendButtonMessage(
   to: string,
   bodyText: string,
   buttons: WaButton[],
-  opts?: { headerText?: string; footerText?: string },
+  opts?: { headerText?: string; headerImageUrl?: string; footerText?: string },
 ): Promise<boolean> {
   const interactive: Record<string, unknown> = {
     type: 'button',
@@ -99,7 +99,9 @@ export function sendButtonMessage(
     },
   }
 
-  if (opts?.headerText) {
+  if (opts?.headerImageUrl) {
+    interactive.header = { type: 'image', image: { link: opts.headerImageUrl } }
+  } else if (opts?.headerText) {
     interactive.header = { type: 'text', text: opts.headerText.substring(0, 60) }
   }
   if (opts?.footerText) {
