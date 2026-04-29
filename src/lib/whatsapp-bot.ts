@@ -162,7 +162,7 @@ async function sendDefaultMenu(
   const buttons = [
     { id: 'btn_products', title: '🛍️ Ver productos' },
     { id: 'btn_orders',   title: '📦 Mis pedidos' },
-    { id: 'btn_support',  title: '💬 Soporte' },
+    { id: 'btn_support',  title: '💬 Con un operador' },
   ]
   const content = `${menuHeader}\n[${buttons.map(b => b.title).join(' | ')}]`
   await saveMessage(db, tenantId, to, 'outbound', content)
