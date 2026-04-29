@@ -200,30 +200,32 @@ async function sendWelcomeAndMenu(
   db: ReturnType<typeof srvClient>,
   tenantId: string,
 ) {
-  // Enviar imagen de bienvenida si está configurada (siempre como imagen independiente)
-  if (cfg.welcome_image_url) {
-    await saveMessage(db, tenantId, to, 'outbound', `[Imagen bienvenida] ${cfg.welcome_message}`)
-    await sendImageMessage(cfg.phone_number_id, cfg.access_token, to, cfg.welcome_image_url, cfg.welcome_message)
-  } else {
-    await saveMessage(db, tenantId, to, 'outbound', cfg.welcome_message)
-    await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, cfg.welcome_message)
-  }
-
   if (flows.length === 0) {
+    // Sin flujos → imagen/texto de bienvenida + menú estándar (mensajes separados)
+    if (cfg.welcome_image_url) {
+      await saveMessage(db, tenantId, to, 'outbound', `[Imagen bienvenida] ${cfg.welcome_message}`)
+      await sendImageMessage(cfg.phone_number_id, cfg.access_token, to, cfg.welcome_image_url, cfg.welcome_message)
+    } else {
+      await saveMessage(db, tenantId, to, 'outbound', cfg.welcome_message)
+      await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, cfg.welcome_message)
+    }
     return sendDefaultMenu(cfg, to, db, tenantId)
   }
 
-  // Con flujos → mensaje interactivo con los botones del menú
+  // Con flujos → UN SOLO mensaje interactivo: imagen como header + bienvenida + botones personalizados
+  // (un solo mensaje evita el problema de orden de entrega)
   const buttons = flows.map(s => ({ id: s.button_id, title: s.button_title.substring(0, 20) }))
-  const logContent = `[Menú] ${buttons.map(b => b.title).join(' | ')}`
+  const bodyText = cfg.welcome_message || cfg.menu_header || '¡Hola! ¿En qué te puedo ayudar?'
+  const logContent = `[Bienvenida] ${bodyText}\n[${buttons.map(b => b.title).join(' | ')}]`
   await saveMessage(db, tenantId, to, 'outbound', logContent)
 
   return sendButtonMessage(
     cfg.phone_number_id,
     cfg.access_token,
     to,
-    cfg.menu_header,
+    bodyText,
     buttons,
+    cfg.welcome_image_url ? { headerImageUrl: cfg.welcome_image_url } : undefined,
   )
 }
 
