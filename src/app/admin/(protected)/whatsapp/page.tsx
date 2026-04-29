@@ -1,11 +1,144 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Bot, Save, Eye, EyeOff, Copy, CheckCircle, ExternalLink, Info,
   ImagePlus, X, Plus, Trash2, ChevronDown, ChevronUp, GripVertical,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+// ─── Emoji picker ─────────────────────────────────────────────────────────────
+
+const EMOJIS = [
+  '👋','😊','😃','😍','🤩','😎','😋','🤗','😇','🙂',
+  '😉','🥳','💪','👍','👏','🙏','🤝','❤️','🔥','⭐',
+  '✅','❌','⚠️','💯','🎉','🎊','💡','✨','💫','🌟',
+  '📦','🛍️','💰','💳','🛒','🏷️','🎁','📋','📝','📣',
+  '📱','💻','📞','💬','🔔','📍','🗓️','⏰','🚀','🔑',
+  '🏪','🏠','🚚','📮','💌','🔖','📌','🔍','🆕','🆓',
+]
+
+function EmojiPickerDropdown({ onSelect }: { onSelect: (e: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="text-gray-400 hover:text-yellow-500 transition-colors text-base leading-none select-none"
+        title="Insertar emoji"
+      >
+        😊
+      </button>
+      {open && (
+        <div className="absolute bottom-7 right-0 z-30 bg-white border border-gray-200 rounded-xl shadow-xl p-2 w-60">
+          <div className="grid grid-cols-10 gap-0.5 max-h-36 overflow-y-auto">
+            {EMOJIS.map(e => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => { onSelect(e); setOpen(false) }}
+                className="text-lg p-0.5 rounded hover:bg-gray-100 transition-colors leading-tight"
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface TextareaWithEmojiProps {
+  value: string
+  onValueChange: (v: string) => void
+  placeholder?: string
+  rows?: number
+  className?: string
+}
+
+function TextareaWithEmoji({ value, onValueChange, placeholder, rows = 3, className }: TextareaWithEmojiProps) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+
+  const insertEmoji = useCallback((emoji: string) => {
+    const el = ref.current
+    const start = el ? el.selectionStart : value.length
+    const end   = el ? el.selectionEnd   : value.length
+    const next  = value.slice(0, start) + emoji + value.slice(end)
+    onValueChange(next)
+    requestAnimationFrame(() => {
+      if (el) { el.focus(); el.selectionStart = el.selectionEnd = start + emoji.length }
+    })
+  }, [value, onValueChange])
+
+  return (
+    <div className="relative">
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={e => onValueChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className={`${className ?? ''} pr-8`}
+      />
+      <div className="absolute bottom-2 right-2">
+        <EmojiPickerDropdown onSelect={insertEmoji} />
+      </div>
+    </div>
+  )
+}
+
+interface InputWithEmojiProps {
+  value: string
+  onValueChange: (v: string) => void
+  placeholder?: string
+  className?: string
+  maxLength?: number
+}
+
+function InputWithEmoji({ value, onValueChange, placeholder, className, maxLength }: InputWithEmojiProps) {
+  const ref = useRef<HTMLInputElement>(null)
+
+  const insertEmoji = useCallback((emoji: string) => {
+    const el = ref.current
+    const start = el ? el.selectionStart ?? value.length : value.length
+    const end   = el ? el.selectionEnd   ?? value.length : value.length
+    const next  = value.slice(0, start) + emoji + value.slice(end)
+    const trimmed = maxLength ? next.slice(0, maxLength) : next
+    onValueChange(trimmed)
+    requestAnimationFrame(() => {
+      if (el) { el.focus(); el.selectionStart = el.selectionEnd = Math.min(start + emoji.length, trimmed.length) }
+    })
+  }, [value, onValueChange, maxLength])
+
+  return (
+    <div className="relative">
+      <input
+        ref={ref}
+        type="text"
+        value={value}
+        onChange={e => onValueChange(maxLength ? e.target.value.slice(0, maxLength) : e.target.value)}
+        placeholder={placeholder}
+        className={`${className ?? ''} pr-8`}
+      />
+      <div className="absolute top-1/2 -translate-y-1/2 right-2">
+        <EmojiPickerDropdown onSelect={insertEmoji} />
+      </div>
+    </div>
+  )
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -570,10 +703,10 @@ export default function WhatsAppBotPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Mensaje de bienvenida
             </label>
-            <textarea
+            <TextareaWithEmoji
               rows={2}
               value={config.welcome_message}
-              onChange={(e) => setConfig((c) => ({ ...c, welcome_message: e.target.value }))}
+              onValueChange={(v) => setConfig((c) => ({ ...c, welcome_message: v }))}
               className={textareaClass}
             />
             <p className="text-xs text-gray-400 mt-1">
@@ -585,10 +718,9 @@ export default function WhatsAppBotPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Encabezado del menú principal
             </label>
-            <input
-              type="text"
+            <InputWithEmoji
               value={config.menu_header}
-              onChange={(e) => setConfig((c) => ({ ...c, menu_header: e.target.value }))}
+              onValueChange={(v) => setConfig((c) => ({ ...c, menu_header: v }))}
               className={inputClass}
             />
             <p className="text-xs text-gray-400 mt-1">
@@ -600,10 +732,10 @@ export default function WhatsAppBotPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Mensaje al pedir consulta de pedidos
             </label>
-            <textarea
+            <TextareaWithEmoji
               rows={2}
               value={config.orders_ask_phone}
-              onChange={(e) => setConfig((c) => ({ ...c, orders_ask_phone: e.target.value }))}
+              onValueChange={(v) => setConfig((c) => ({ ...c, orders_ask_phone: v }))}
               className={textareaClass}
             />
           </div>
@@ -612,10 +744,10 @@ export default function WhatsAppBotPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Mensaje de soporte
             </label>
-            <textarea
+            <TextareaWithEmoji
               rows={2}
               value={config.support_message}
-              onChange={(e) => setConfig((c) => ({ ...c, support_message: e.target.value }))}
+              onValueChange={(v) => setConfig((c) => ({ ...c, support_message: v }))}
               className={textareaClass}
             />
           </div>
@@ -624,10 +756,10 @@ export default function WhatsAppBotPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Mensaje cuando no se encuentran pedidos
             </label>
-            <textarea
+            <TextareaWithEmoji
               rows={2}
               value={config.no_orders_message}
-              onChange={(e) => setConfig((c) => ({ ...c, no_orders_message: e.target.value }))}
+              onValueChange={(v) => setConfig((c) => ({ ...c, no_orders_message: v }))}
               className={textareaClass}
             />
           </div>
@@ -754,8 +886,11 @@ function TopStepCard({
             value={step.button_title}
             onChange={(e) => onUpdate({ button_title: e.target.value.slice(0, 20) })}
             placeholder="Título del botón (máx 20 caracteres)"
-            className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 pr-12"
+            className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 pr-16"
           />
+          <div className="absolute right-7 top-1/2 -translate-y-1/2">
+            <EmojiPickerDropdown onSelect={(e) => onUpdate({ button_title: (step.button_title + e).slice(0, 20) })} />
+          </div>
           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">
             {step.button_title.length}/20
           </span>
@@ -822,10 +957,10 @@ function TopStepCard({
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   Texto de respuesta (opcional)
                 </label>
-                <textarea
+                <TextareaWithEmoji
                   rows={3}
                   value={step.response_text}
-                  onChange={(e) => onUpdate({ response_text: e.target.value })}
+                  onValueChange={(v) => onUpdate({ response_text: v })}
                   placeholder="Mensaje que el bot enviará cuando el cliente toque este botón…"
                   className={textareaClass}
                 />
@@ -910,8 +1045,11 @@ function ChildStepCard({ child, idx, inputClass, textareaClass, onUpdate, onRemo
             value={child.button_title}
             onChange={(e) => onUpdate({ button_title: e.target.value.slice(0, 20) })}
             placeholder="Título del sub-botón (máx 20)"
-            className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none pr-10"
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none pr-14"
           />
+          <div className="absolute right-7 top-1/2 -translate-y-1/2 text-xs">
+            <EmojiPickerDropdown onSelect={(e) => onUpdate({ button_title: (child.button_title + e).slice(0, 20) })} />
+          </div>
           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-gray-400">
             {child.button_title.length}/20
           </span>
@@ -943,10 +1081,10 @@ function ChildStepCard({ child, idx, inputClass, textareaClass, onUpdate, onRemo
             <label className="block text-[11px] font-medium text-gray-600 mb-1">
               Texto de respuesta (opcional)
             </label>
-            <textarea
+            <TextareaWithEmoji
               rows={2}
               value={child.response_text}
-              onChange={(e) => onUpdate({ response_text: e.target.value })}
+              onValueChange={(v) => onUpdate({ response_text: v })}
               placeholder="Mensaje de respuesta…"
               className={`${textareaClass} text-xs`}
             />

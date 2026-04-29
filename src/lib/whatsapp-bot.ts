@@ -158,14 +158,15 @@ async function sendDefaultMenu(
   db: ReturnType<typeof srvClient>,
   tenantId: string,
 ) {
+  const menuHeader = cfg.menu_header || '¿En qué te puedo ayudar?'
   const buttons = [
     { id: 'btn_products', title: '🛍️ Ver productos' },
     { id: 'btn_orders',   title: '📦 Mis pedidos' },
     { id: 'btn_support',  title: '💬 Soporte' },
   ]
-  const content = `${cfg.menu_header}\n[${buttons.map(b => b.title).join(' | ')}]`
+  const content = `${menuHeader}\n[${buttons.map(b => b.title).join(' | ')}]`
   await saveMessage(db, tenantId, to, 'outbound', content)
-  return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, cfg.menu_header, buttons)
+  return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, menuHeader, buttons)
 }
 
 // ─── Menú dinámico (cuando SÍ hay flujos configurados) ────────────────────────
@@ -180,10 +181,11 @@ async function sendDynamicMenu(
   db: ReturnType<typeof srvClient>,
   tenantId: string,
 ) {
+  const menuHeader = cfg.menu_header || '¿En qué te puedo ayudar?'
   const buttons = flows.map(s => ({ id: s.button_id, title: s.button_title.substring(0, 20) }))
-  const content = `${cfg.menu_header}\n[${buttons.map(b => b.title).join(' | ')}]`
+  const content = `${menuHeader}\n[${buttons.map(b => b.title).join(' | ')}]`
   await saveMessage(db, tenantId, to, 'outbound', content)
-  return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, cfg.menu_header, buttons)
+  return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, menuHeader, buttons)
 }
 
 // ─── Bienvenida inicial ────────────────────────────────────────────────────────
@@ -392,10 +394,11 @@ async function handleCustomFlow(
   // ¿Tiene sub-botones?
   const children = await getChildFlowSteps(db, tenantId, step.id)
   if (children.length > 0) {
+    const menuHeader = cfg.menu_header || '¿En qué te puedo ayudar?'
     const buttons = children.map(c => ({ id: c.button_id, title: c.button_title.substring(0, 20) }))
     const content = `[Sub-menú] ${buttons.map(b => b.title).join(' | ')}`
     await saveMessage(db, tenantId, to, 'outbound', content)
-    return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, cfg.menu_header, buttons)
+    return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, menuHeader, buttons)
   }
 
   // Sin sub-botones → volver al menú principal
