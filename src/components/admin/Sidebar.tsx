@@ -18,8 +18,7 @@ interface NavItem {
 
 interface ConvSummary {
   customer_phone: string
-  last_direction: string
-  last_at: string
+  last_inbound_at: string | null
 }
 
 const LS_KEY = 'wa_seen'
@@ -28,24 +27,21 @@ function getSeenMap(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(LS_KEY) ?? '{}') } catch { return {} }
 }
 
+function hasUnreadInbound(conv: ConvSummary, seen: Record<string, string>): boolean {
+  if (!conv.last_inbound_at) return false
+  const lastSeen = seen[conv.customer_phone]
+  if (!lastSeen) return true
+  return new Date(conv.last_inbound_at) > new Date(lastSeen)
+}
+
 function computeUnread(convs: ConvSummary[]): number {
   const seen = getSeenMap()
-  return convs.filter(c =>
-    c.last_direction === 'inbound' &&
-    (!seen[c.customer_phone] || new Date(c.last_at) > new Date(seen[c.customer_phone]))
-  ).length
+  return convs.filter(c => hasUnreadInbound(c, seen)).length
 }
 
 function getUnreadPhones(convs: ConvSummary[]): Set<string> {
   const seen = getSeenMap()
-  return new Set(
-    convs
-      .filter(c =>
-        c.last_direction === 'inbound' &&
-        (!seen[c.customer_phone] || new Date(c.last_at) > new Date(seen[c.customer_phone]))
-      )
-      .map(c => c.customer_phone)
-  )
+  return new Set(convs.filter(c => hasUnreadInbound(c, seen)).map(c => c.customer_phone))
 }
 
 function sendBrowserNotification(count: number) {

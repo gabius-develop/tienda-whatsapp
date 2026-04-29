@@ -9,6 +9,7 @@ interface Conversation {
   last_message: string
   last_direction: string
   last_at: string
+  last_inbound_at: string | null
   message_count: number
   state: string
 }
@@ -31,12 +32,12 @@ function timeAgo(dateStr: string) {
 }
 
 function isUnread(conv: Conversation): boolean {
-  if (conv.last_direction !== 'inbound') return false
+  if (!conv.last_inbound_at) return false
   try {
     const seen = JSON.parse(localStorage.getItem('wa_seen') ?? '{}')
     const lastSeen = seen[conv.customer_phone]
     if (!lastSeen) return true
-    return new Date(conv.last_at) > new Date(lastSeen)
+    return new Date(conv.last_inbound_at) > new Date(lastSeen)
   } catch { return false }
 }
 

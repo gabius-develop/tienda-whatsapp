@@ -77,10 +77,12 @@ export async function GET(request: NextRequest) {
     last_message: string
     last_direction: string
     last_at: string
+    last_inbound_at: string | null
     message_count: number
     state: string
   }>()
 
+  // Mensajes vienen ordenados DESC → el primero de cada teléfono es el más reciente
   for (const msg of (msgs ?? [])) {
     if (!byPhone.has(msg.customer_phone)) {
       byPhone.set(msg.customer_phone, {
@@ -88,11 +90,17 @@ export async function GET(request: NextRequest) {
         last_message: msg.content,
         last_direction: msg.direction,
         last_at: msg.created_at,
+        last_inbound_at: msg.direction === 'inbound' ? msg.created_at : null,
         message_count: 1,
         state: stateMap.get(msg.customer_phone) ?? 'idle',
       })
     } else {
-      byPhone.get(msg.customer_phone)!.message_count++
+      const entry = byPhone.get(msg.customer_phone)!
+      entry.message_count++
+      // Guardar el inbound más reciente (el primero que encontramos en orden DESC)
+      if (msg.direction === 'inbound' && entry.last_inbound_at === null) {
+        entry.last_inbound_at = msg.created_at
+      }
     }
   }
 
