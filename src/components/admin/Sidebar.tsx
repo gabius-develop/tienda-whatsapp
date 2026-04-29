@@ -56,7 +56,6 @@ function sendBrowserNotification(count: number) {
       {
         body: 'Tienes conversaciones pendientes de atender en tu tienda.',
         tag: 'wa-unread',
-        renotify: true,
       }
     )
   } catch { /* silencioso */ }
