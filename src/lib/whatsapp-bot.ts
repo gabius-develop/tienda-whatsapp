@@ -200,27 +200,30 @@ async function sendWelcomeAndMenu(
   db: ReturnType<typeof srvClient>,
   tenantId: string,
 ) {
-  if (flows.length === 0) {
-    // Sin flujos → comportamiento original (dos mensajes separados)
+  // Enviar imagen de bienvenida si está configurada (siempre como imagen independiente)
+  if (cfg.welcome_image_url) {
+    await saveMessage(db, tenantId, to, 'outbound', `[Imagen bienvenida] ${cfg.welcome_message}`)
+    await sendImageMessage(cfg.phone_number_id, cfg.access_token, to, cfg.welcome_image_url, cfg.welcome_message)
+  } else {
     await saveMessage(db, tenantId, to, 'outbound', cfg.welcome_message)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, cfg.welcome_message)
+  }
+
+  if (flows.length === 0) {
     return sendDefaultMenu(cfg, to, db, tenantId)
   }
 
-  // Con flujos → un solo mensaje interactivo con bienvenida integrada
+  // Con flujos → mensaje interactivo con los botones del menú
   const buttons = flows.map(s => ({ id: s.button_id, title: s.button_title.substring(0, 20) }))
-  const logContent = `[Bienvenida] ${cfg.welcome_message}\n[${buttons.map(b => b.title).join(' | ')}]`
+  const logContent = `[Menú] ${buttons.map(b => b.title).join(' | ')}`
   await saveMessage(db, tenantId, to, 'outbound', logContent)
 
   return sendButtonMessage(
     cfg.phone_number_id,
     cfg.access_token,
     to,
-    cfg.welcome_message,  // body del mensaje interactivo
+    cfg.menu_header,
     buttons,
-    cfg.welcome_image_url
-      ? { headerImageUrl: cfg.welcome_image_url }
-      : undefined,
   )
 }
 
