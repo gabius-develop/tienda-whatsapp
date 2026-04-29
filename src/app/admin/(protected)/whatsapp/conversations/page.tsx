@@ -30,8 +30,19 @@ function timeAgo(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
 }
 
+function isUnread(conv: Conversation): boolean {
+  if (conv.last_direction !== 'inbound') return false
+  try {
+    const seen = JSON.parse(localStorage.getItem('wa_seen') ?? '{}')
+    const lastSeen = seen[conv.customer_phone]
+    if (!lastSeen) return true
+    return new Date(conv.last_at) > new Date(lastSeen)
+  } catch { return false }
+}
+
 export default function ConversationsPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
+  const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [convState, setConvState] = useState<'idle' | 'support' | 'order_lookup'>('idle')
@@ -114,6 +125,14 @@ export default function ConversationsPage() {
     return () => clearInterval(interval)
   }, [selectedPhone, fetchMessages])
 
+  // ── Auto-reset filtro cuando no quedan sin leer ───────────────────────────
+
+  useEffect(() => {
+    if (filter === 'unread' && conversations.filter(isUnread).length === 0) {
+      setFilter('all')
+    }
+  }, [conversations, filter])
+
   // ── Acciones ──────────────────────────────────────────────────────────────
 
   const markAsRead = (phone: string) => {
@@ -121,19 +140,8 @@ export default function ConversationsPage() {
       const seen = JSON.parse(localStorage.getItem('wa_seen') ?? '{}')
       seen[phone] = new Date().toISOString()
       localStorage.setItem('wa_seen', JSON.stringify(seen))
-      // Notificar al sidebar para que actualice el conteo
       window.dispatchEvent(new CustomEvent('wa-conversation-read'))
     } catch { /* silencioso */ }
-  }
-
-  const isUnread = (conv: Conversation) => {
-    if (conv.last_direction !== 'inbound') return false
-    try {
-      const seen = JSON.parse(localStorage.getItem('wa_seen') ?? '{}')
-      const lastSeen = seen[conv.customer_phone]
-      if (!lastSeen) return true
-      return new Date(conv.last_at) > new Date(lastSeen)
-    } catch { return false }
   }
 
   const handleSelect = (phone: string) => {
@@ -192,19 +200,30 @@ export default function ConversationsPage() {
     }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────
 
   const isSupport = convState === 'support'
+  const unreadConvsCount = conversations.filter(isUnread).length
+  const filteredConversations = filter === 'unread' ? conversations.filter(isUnread) : conversations
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex h-[calc(100vh-48px)] md:h-screen">
 
       {/* ── Lista de conversaciones ── */}
       <div className={`${selectedPhone ? 'hidden md:flex' : 'flex'} w-full md:w-80 border-r border-gray-200 flex-col bg-white`}>
+
+        {/* Header */}
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
           <h1 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
             <MessageSquare className="w-4 h-4 text-green-600" />
             Conversaciones
+            {unreadConvsCount > 0 && (
+              <span className="min-w-[20px] h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1.5 animate-pulse">
+                {unreadConvsCount > 99 ? '99+' : unreadConvsCount}
+              </span>
+            )}
           </h1>
           <button
             onClick={() => fetchConversations()}
@@ -213,6 +232,37 @@ export default function ConversationsPage() {
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Tabs de filtro — solo visibles cuando hay sin leer */}
+        {unreadConvsCount > 0 && (
+          <div className="flex border-b border-gray-100 px-3 gap-0">
+            <button
+              onClick={() => setFilter('all')}
+              className={`flex-1 text-xs font-medium py-2.5 border-b-2 transition-colors ${
+                filter === 'all'
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-gray-400 hover:text-gray-700'
+              }`}
+            >
+              Todas ({conversations.length})
+            </button>
+            <button
+              onClick={() => setFilter('unread')}
+              className={`flex-1 text-xs font-medium py-2.5 border-b-2 transition-colors flex items-center justify-center gap-1.5 ${
+                filter === 'unread'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-400 hover:text-gray-700'
+              }`}
+            >
+              Sin leer
+              <span className={`text-[10px] min-w-[18px] h-[18px] flex items-center justify-center rounded-full font-bold px-1 ${
+                filter === 'unread' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'
+              }`}>
+                {unreadConvsCount}
+              </span>
+            </button>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto">
           {initialLoading ? (
@@ -224,47 +274,53 @@ export default function ConversationsPage() {
                 </div>
               ))}
             </div>
-          ) : conversations.length === 0 ? (
+          ) : filteredConversations.length === 0 ? (
             <div className="p-6 text-center text-gray-400 text-sm">
               <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              No hay conversaciones aún
+              {filter === 'unread' ? '¡Todo leído!' : 'No hay conversaciones aún'}
             </div>
           ) : (
-            conversations.map((conv) => (
-              <button
-                key={conv.customer_phone}
-                onClick={() => handleSelect(conv.customer_phone)}
-                className={`w-full text-left p-4 border-b border-gray-50 transition-colors ${
-                  selectedPhone === conv.customer_phone
-                    ? 'bg-green-50 border-l-[3px] border-l-green-500'
-                    : isUnread(conv)
-                      ? 'bg-blue-50/50 border-l-[3px] border-l-blue-400 hover:bg-blue-50'
-                      : 'border-l-[3px] border-l-transparent hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`text-sm flex items-center gap-1.5 ${isUnread(conv) ? 'font-bold text-gray-900' : 'font-medium text-gray-900'}`}>
-                    <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    +{conv.customer_phone}
-                  </span>
-                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                    {isUnread(conv) && selectedPhone !== conv.customer_phone && (
-                      <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                    )}
-                    {conv.state === 'support' && (
-                      <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-medium">
-                        soporte
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-400">{timeAgo(conv.last_at)}</span>
+            filteredConversations.map((conv) => {
+              const unread = isUnread(conv)
+              const active = selectedPhone === conv.customer_phone
+              return (
+                <button
+                  key={conv.customer_phone}
+                  onClick={() => handleSelect(conv.customer_phone)}
+                  className={`w-full text-left p-4 border-b border-gray-50 transition-colors ${
+                    active
+                      ? 'bg-green-50 border-l-[3px] border-l-green-500'
+                      : unread
+                        ? 'bg-blue-50/60 border-l-[3px] border-l-blue-500 hover:bg-blue-50'
+                        : 'border-l-[3px] border-l-transparent hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-sm flex items-center gap-1.5 ${unread ? 'font-bold text-gray-900' : 'font-medium text-gray-900'}`}>
+                      <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      +{conv.customer_phone}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      {unread && !active && (
+                        <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-full font-bold leading-tight">
+                          nuevo
+                        </span>
+                      )}
+                      {conv.state === 'support' && (
+                        <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-medium">
+                          soporte
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400">{timeAgo(conv.last_at)}</span>
+                    </div>
                   </div>
-                </div>
-                <p className={`text-xs truncate ${isUnread(conv) ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
-                  {conv.last_direction === 'outbound' ? '🤖 ' : '👤 '}
-                  {conv.last_message}
-                </p>
-              </button>
-            ))
+                  <p className={`text-xs truncate ${unread ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
+                    {conv.last_direction === 'outbound' ? '🤖 ' : '👤 '}
+                    {conv.last_message}
+                  </p>
+                </button>
+              )
+            })
           )}
         </div>
       </div>
