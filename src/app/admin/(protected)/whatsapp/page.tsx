@@ -484,6 +484,15 @@ export default function WhatsAppBotPage() {
               Cualquier texto que tú elijas. Debes poner el mismo valor al configurar el webhook en Meta.
             </p>
           </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-xl transition-colors"
+          >
+            <Save className="w-4 h-4" />
+            {saving ? 'Guardando...' : 'Guardar credenciales'}
+          </button>
         </div>
 
         {/* ── URL del Webhook ── */}
