@@ -62,7 +62,7 @@ export interface WaBotConfig {
   no_orders_message: string
 }
 
-type ConversationState = 'idle' | 'order_lookup' | 'support'
+type ConversationState = 'idle' | 'order_lookup' | 'support' | 'ended'
 
 export interface IncomingMessage {
   messageId: string
@@ -169,25 +169,6 @@ async function sendDefaultMenu(
   return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, menuHeader, buttons)
 }
 
-// ─── Menú dinámico (cuando SÍ hay flujos configurados) ────────────────────────
-//
-// Esta función NUNCA llama al menú hardcodeado: si se invoca con flows vacíos
-// significa que los flujos ya fueron comprobados antes y realmente no hay.
-
-async function sendDynamicMenu(
-  cfg: WaBotConfig,
-  to: string,
-  flows: FlowStep[],
-  db: ReturnType<typeof srvClient>,
-  tenantId: string,
-) {
-  const menuHeader = cfg.menu_header || '¿En qué te puedo ayudar?'
-  const buttons = flows.map(s => ({ id: s.button_id, title: s.button_title.substring(0, 20) }))
-  const content = `${menuHeader}\n[${buttons.map(b => b.title).join(' | ')}]`
-  await saveMessage(db, tenantId, to, 'outbound', content)
-  return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, menuHeader, buttons)
-}
-
 // ─── Bienvenida inicial ────────────────────────────────────────────────────────
 //
 // • Sin flujos configurados → texto de bienvenida por separado + menú hardcodeado
@@ -231,19 +212,22 @@ async function sendWelcomeAndMenu(
   )
 }
 
-// ─── Enrutador de menú (para volver al menú después de una interacción) ────────
+// ─── Menú post-acción (después de ejecutar cualquier acción del bot) ─────────
 
-async function returnToMenu(
+async function sendPostActionMenu(
   cfg: WaBotConfig,
   to: string,
-  flows: FlowStep[],
   db: ReturnType<typeof srvClient>,
   tenantId: string,
 ) {
-  if (flows.length === 0) {
-    return sendDefaultMenu(cfg, to, db, tenantId)
-  }
-  return sendDynamicMenu(cfg, to, flows, db, tenantId)
+  const bodyText = '¿Qué deseas hacer ahora?'
+  const buttons = [
+    { id: 'btn_main_menu', title: '🏠 Menú principal' },
+    { id: 'btn_support',   title: '💬 Con un operador' },
+    { id: 'btn_exit',      title: '👋 Salir' },
+  ]
+  await saveMessage(db, tenantId, to, 'outbound', `${bodyText}\n[${buttons.map(b => b.title).join(' | ')}]`)
+  return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, bodyText, buttons)
 }
 
 // ─── Flujo: Ver productos ─────────────────────────────────────────────────────
@@ -266,7 +250,8 @@ async function handleProducts(
   if (!products || products.length === 0) {
     const text = 'Pronto tendremos productos disponibles. ¡Vuelve a visitarnos! 😊'
     await saveMessage(db, tenantId, to, 'outbound', text)
-    return sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
+    return sendPostActionMenu(cfg, to, db, tenantId)
   }
 
   const byCategory: Record<string, typeof products> = {}
@@ -314,7 +299,7 @@ async function handleProductDetail(
     const text = 'Producto no encontrado.'
     await saveMessage(db, tenantId, to, 'outbound', text)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
-    return returnToMenu(cfg, to, flows, db, tenantId)
+    return sendPostActionMenu(cfg, to, db, tenantId)
   }
 
   const desc = p.description ? `\n\n_${p.description}_` : ''
@@ -324,7 +309,7 @@ async function handleProductDetail(
 
   await saveMessage(db, tenantId, to, 'outbound', text)
   await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
-  return returnToMenu(cfg, to, flows, db, tenantId)
+  return sendPostActionMenu(cfg, to, db, tenantId)
 }
 
 // ─── Flujo: Mis pedidos ───────────────────────────────────────────────────────
@@ -352,7 +337,7 @@ async function handleOrderLookup(
   if (!orders || orders.length === 0) {
     await saveMessage(db, tenantId, to, 'outbound', cfg.no_orders_message)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, cfg.no_orders_message)
-    return returnToMenu(cfg, to, flows, db, tenantId)
+    return sendPostActionMenu(cfg, to, db, tenantId)
   }
 
   const STATUS: Record<string, string> = {
@@ -368,7 +353,7 @@ async function handleOrderLookup(
   const text = `Encontré ${orders.length} pedido(s) para ese número:\n\n${list}`
   await saveMessage(db, tenantId, to, 'outbound', text)
   await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
-  return returnToMenu(cfg, to, flows, db, tenantId)
+  return sendPostActionMenu(cfg, to, db, tenantId)
 }
 
 // ─── Flujo: Botón personalizado ───────────────────────────────────────────────
@@ -401,8 +386,8 @@ async function handleCustomFlow(
     return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, menuHeader, buttons)
   }
 
-  // Sin sub-botones → volver al menú principal
-  return returnToMenu(cfg, to, flows, db, tenantId)
+  // Sin sub-botones → menú post-acción
+  return sendPostActionMenu(cfg, to, db, tenantId)
 }
 
 // ─── Punto de entrada principal ───────────────────────────────────────────────
@@ -460,7 +445,7 @@ export async function handleIncomingMessage(
         .single()
 
       if (step) return handleCustomFlow(cfg, msg.from, step as FlowStep, tenantId, db, flows)
-      return returnToMenu(cfg, msg.from, flows, db, tenantId)
+      return sendPostActionMenu(cfg, msg.from, db, tenantId)
     }
 
     if (id === 'btn_products') return handleProducts(cfg, msg.from, tenantId, db, flows)
@@ -477,11 +462,22 @@ export async function handleIncomingMessage(
       return setConversationState(db, tenantId, msg.from, 'support')
     }
 
+    if (id === 'btn_main_menu') {
+      return sendWelcomeAndMenu(cfg, msg.from, flows, db, tenantId)
+    }
+
+    if (id === 'btn_exit') {
+      const exitText = '¡Hasta pronto! 👋 Si necesitas algo más, escríbenos cuando quieras.'
+      await saveMessage(db, tenantId, msg.from, 'outbound', exitText)
+      await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, exitText)
+      return setConversationState(db, tenantId, msg.from, 'ended')
+    }
+
     if (id.startsWith('product_')) {
       return handleProductDetail(cfg, msg.from, id.replace('product_', ''), tenantId, db, storeUrl, flows)
     }
 
-    return returnToMenu(cfg, msg.from, flows, db, tenantId)
+    return sendPostActionMenu(cfg, msg.from, db, tenantId)
   }
 
   // ── Mensajes de texto ──────────────────────────────────────────────────────
@@ -504,5 +500,5 @@ export async function handleIncomingMessage(
   // ── Cualquier otro tipo de mensaje ────────────────────────────────────────
   const state = await getConversationState(db, tenantId, msg.from)
   if (state === 'support') return
-  return returnToMenu(cfg, msg.from, flows, db, tenantId)
+  return sendPostActionMenu(cfg, msg.from, db, tenantId)
 }

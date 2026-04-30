@@ -728,3 +728,8 @@ Access Token EAAMN845W2rEBRR89zrWFWErJxkZCBHMu8kI9ckaWJonN9AFisVlVcxlZBFZB02r3pb
   └───────────┴───────────────────────────────────────────────┴───────────────────────────────┘
 
   La modalidad básica ya funciona sin que el cliente toque Facebook — solo pones su número en el superadmin y listo. El bot es opcional para los que quieran respuestas automáticas.
+https://github.com/gabius-develop/crmmessaging
+
+EAAUohZA2ZAKfYBRVMFPUMdPatvZBkRkgotVei52SvIb06ZCwciP6OCvkLISvL0ZCMFvBZAtd4or8gS3xg85VmSZCXZB8fypu8HQ3D5hoTsEGLufACR4TyMscmHlNZCd0bZAKQ9ZA54MGMrSS517kbxu3aOzAS1LWL5mjm9L6El2SDe0hezrJnbrqdxX65WFFVHPgHLM2gZDZD
+EAAUohZA2ZAKfYBRXiy6fEkNYJADCSJ5Offv3nYaZAgpkn0X1ZATIyM46l6KAJC0dYMd0iaLBgieatfSA6ghQcW1F38TQSZA2S0BIx7Cp2cSNfIRgKcnwDwzh1M2Bw4JcLZA5293TyQpuf23lPnaF7LyoV1RS4ZBuwxinHA5HZAL2b5sX1fmAE24PZBHR2QXiHa2FW9gZDZD
+https://tienda-whatsapp-production-099c.up.railway.app/api/whatsapp/webhook
