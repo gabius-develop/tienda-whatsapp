@@ -103,6 +103,13 @@ export async function POST(request: NextRequest) {
               incoming.interactiveId    = lr?.id
               incoming.interactiveTitle = lr?.title
             }
+          } else if (m.type === 'location') {
+            const loc = m.location as Record<string, unknown>
+            incoming.type             = 'location'
+            incoming.locationLatitude  = loc?.latitude  as number
+            incoming.locationLongitude = loc?.longitude as number
+            incoming.locationName      = loc?.name      as string | undefined
+            incoming.locationAddress   = loc?.address   as string | undefined
           }
 
           // Guardar mensaje entrante en historial

@@ -76,10 +76,14 @@ interface ConversationContext {
 export interface IncomingMessage {
   messageId: string
   from: string
-  type: 'text' | 'interactive' | 'other'
+  type: 'text' | 'interactive' | 'location' | 'other'
   text?: string
   interactiveId?: string
   interactiveTitle?: string
+  locationLatitude?:  number
+  locationLongitude?: number
+  locationName?:      string
+  locationAddress?:   string
 }
 
 interface FlowStep {
@@ -540,7 +544,9 @@ async function handleCollectingName(
   tenantId: string,
   db: ReturnType<typeof srvClient>,
 ) {
-  const text = `Perfecto, *${name}*. ¿Cuál es tu *dirección de entrega*?`
+  const text =
+    `Perfecto, *${name}*. ¿Cuál es tu *dirección de entrega*?\n\n` +
+    `Puedes _escribir tu dirección_ o _compartir tu ubicación actual_ 📍 desde el ícono de adjuntar en WhatsApp.`
   await saveMessage(db, tenantId, to, 'outbound', text)
   await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
   return setConversationState(db, tenantId, to, 'collecting_address', { checkout_name: name })
@@ -988,6 +994,32 @@ export async function handleIncomingMessage(
     }
 
     return sendWelcomeAndMenu(cfg, msg.from, flows, db, tenantId)
+  }
+
+  // ── Mensajes de ubicación ─────────────────────────────────────────────────
+  if (msg.type === 'location' && msg.locationLatitude !== undefined && msg.locationLongitude !== undefined) {
+    const state = await getConversationState(db, tenantId, msg.from)
+
+    const mapsUrl = `https://maps.google.com/maps?q=${msg.locationLatitude},${msg.locationLongitude}`
+    const parts: string[] = []
+    if (msg.locationName)    parts.push(msg.locationName)
+    if (msg.locationAddress) parts.push(msg.locationAddress)
+    parts.push(mapsUrl)
+    const addressText = parts.join('\n')
+
+    await saveMessage(db, tenantId, msg.from, 'inbound', `📍 Ubicación: ${addressText}`, msg.messageId)
+
+    if (state === 'collecting_address') {
+      return handleCollectingAddress(cfg, msg.from, addressText, tenantId, db)
+    }
+
+    if (state === 'support') return
+
+    // Ubicación fuera de contexto
+    const reply = 'Recibí tu ubicación 📍, pero en este momento no estoy esperando una dirección. Usa el menú para hacer un pedido.'
+    await saveMessage(db, tenantId, msg.from, 'outbound', reply)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, reply)
+    return sendPostActionMenu(cfg, msg.from, db, tenantId)
   }
 
   // ── Cualquier otro tipo de mensaje ────────────────────────────────────────
