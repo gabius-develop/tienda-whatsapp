@@ -30,13 +30,13 @@ export async function GET(request: NextRequest) {
   const phone = request.nextUrl.searchParams.get('phone')
 
   if (phone) {
-    const [{ data: messages, error }, { data: conv }] = await Promise.all([
+    const [{ data: rawMessages, error }, { data: conv }] = await Promise.all([
       db
         .from('whatsapp_messages')
         .select('id, direction, content, created_at')
         .eq('tenant_id', tenant.id)
         .eq('customer_phone', phone)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false }) // más recientes primero
         .limit(200),
       db
         .from('whatsapp_conversations')
@@ -47,7 +47,9 @@ export async function GET(request: NextRequest) {
     ])
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ messages: messages ?? [], state: conv?.state ?? 'idle' })
+    // Invertir para mostrar en el chat de antiguo a nuevo
+    const messages = (rawMessages ?? []).reverse()
+    return NextResponse.json({ messages, state: conv?.state ?? 'idle' })
   }
 
   // Lista de conversaciones
