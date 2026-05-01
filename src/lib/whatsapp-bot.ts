@@ -652,6 +652,7 @@ async function handleCollectingAddress(
     .map(oi => `• ${oi.product_name} x${oi.quantity} — ${formatCurrency(oi.subtotal)}`)
     .join('\n')
 
+  // Confirmación al cliente
   const confirmText =
     `✅ *¡Pedido confirmado!*\n\n` +
     `👤 ${customerName}\n` +
@@ -662,6 +663,27 @@ async function handleCollectingAddress(
 
   await saveMessage(db, tenantId, to, 'outbound', confirmText)
   await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, confirmText)
+
+  // Notificación al dueño de la tienda (si tiene whatsapp_phone configurado)
+  const { data: tenant } = await db
+    .from('tenants')
+    .select('whatsapp_phone, name')
+    .eq('id', tenantId)
+    .single()
+
+  if (tenant?.whatsapp_phone) {
+    const ownerMsg =
+      `🛒 *NUEVO PEDIDO — ${tenant.name ?? 'Tu tienda'}*\n\n` +
+      `👤 Cliente: ${customerName}\n` +
+      `📱 WhatsApp: +${to}\n` +
+      `📍 Dirección: ${address}\n\n` +
+      `${itemsList}\n\n` +
+      `💰 *Total: ${formatCurrency(total)}*`
+
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, tenant.whatsapp_phone, ownerMsg)
+      .catch(err => console.error('[WA bot] error notificando al dueño:', err))
+  }
+
   return sendPostActionMenu(cfg, to, db, tenantId)
 }
 
