@@ -156,7 +156,7 @@ async function getConversationContext(
     .select('context')
     .eq('tenant_id', tenantId)
     .eq('customer_phone', phone)
-    .single()
+    .maybeSingle()
   return ((data?.context ?? {}) as ConversationContext)
 }
 
@@ -201,23 +201,27 @@ async function addToCart(
   customerPhone: string,
   productId: string,
 ) {
-  const { data: existing } = await db
+  const { data: existing, error: selErr } = await db
     .from('bot_cart_items')
     .select('id, quantity')
     .eq('tenant_id', tenantId)
     .eq('customer_phone', customerPhone)
     .eq('product_id', productId)
-    .single()
+    .maybeSingle()
+
+  if (selErr) console.error('[WA bot] addToCart SELECT error:', selErr.message)
 
   if (existing) {
-    await db
+    const { error: updErr } = await db
       .from('bot_cart_items')
       .update({ quantity: existing.quantity + 1 })
       .eq('id', existing.id)
+    if (updErr) console.error('[WA bot] addToCart UPDATE error:', updErr.message)
   } else {
-    await db
+    const { error: insErr } = await db
       .from('bot_cart_items')
       .insert({ tenant_id: tenantId, customer_phone: customerPhone, product_id: productId, quantity: 1 })
+    if (insErr) console.error('[WA bot] addToCart INSERT error:', insErr.message)
   }
 }
 
@@ -226,11 +230,12 @@ async function getCartItems(
   tenantId: string,
   customerPhone: string,
 ): Promise<CartRow[]> {
-  const { data } = await db
+  const { data, error } = await db
     .from('bot_cart_items')
     .select('quantity, products(id, name, price, stock)')
     .eq('tenant_id', tenantId)
     .eq('customer_phone', customerPhone)
+  if (error) console.error('[WA bot] getCartItems error:', error.message)
   return (data ?? []) as unknown as CartRow[]
 }
 
