@@ -148,6 +148,7 @@ interface BotConfig {
   access_token_preview?: string
   verify_token:          string
   is_active:             boolean
+  is_restaurant:         boolean
   welcome_message:       string
   welcome_image_url:     string
   menu_header:           string
@@ -156,7 +157,7 @@ interface BotConfig {
   no_orders_message:     string
 }
 
-type StepType = 'products' | 'orders' | 'support' | 'custom'
+type StepType = 'products' | 'orders' | 'support' | 'custom' | 'restaurant_menu'
 
 interface ChildStep {
   temp_id:           string
@@ -188,6 +189,7 @@ const DEFAULT_CONFIG: BotConfig = {
   access_token:      '',
   verify_token:      '',
   is_active:         false,
+  is_restaurant:     false,
   welcome_message:   '¡Hola! 👋 Bienvenido a nuestra tienda. ¿En qué te puedo ayudar?',
   welcome_image_url: '',
   menu_header:       '¿Qué deseas hacer?',
@@ -197,10 +199,11 @@ const DEFAULT_CONFIG: BotConfig = {
 }
 
 const STEP_TYPE_OPTIONS: { value: StepType; label: string; desc: string }[] = [
-  { value: 'products', label: '🛍️ Ver productos', desc: 'Muestra el catálogo de productos' },
-  { value: 'orders',   label: '📦 Mis pedidos',   desc: 'Consulta de pedidos por teléfono' },
-  { value: 'support',  label: '💬 Soporte',       desc: 'Pausa el bot para atención humana' },
-  { value: 'custom',   label: '✏️ Personalizado', desc: 'Respuesta y/o imagen a tu elección' },
+  { value: 'products',        label: '🛍️ Ver productos', desc: 'Muestra el catálogo de productos' },
+  { value: 'restaurant_menu', label: '🍽️ Menú restaurante', desc: 'Muestra categorías del menú con pedido en bot' },
+  { value: 'orders',          label: '📦 Mis pedidos',   desc: 'Consulta de pedidos por teléfono' },
+  { value: 'support',         label: '💬 Soporte',       desc: 'Pausa el bot para atención humana' },
+  { value: 'custom',          label: '✏️ Personalizado', desc: 'Respuesta y/o imagen a tu elección' },
 ]
 
 function newTempId() {
@@ -299,6 +302,7 @@ export default function WhatsAppBotPage() {
             orders_ask_phone:     data.orders_ask_phone     ?? DEFAULT_CONFIG.orders_ask_phone,
             support_message:      data.support_message      ?? DEFAULT_CONFIG.support_message,
             no_orders_message:    data.no_orders_message    ?? DEFAULT_CONFIG.no_orders_message,
+            is_restaurant:        data.is_restaurant        ?? false,
           })
         }
       })
@@ -531,7 +535,7 @@ export default function WhatsAppBotPage() {
       <form onSubmit={handleSaveConfig} className="space-y-6">
 
         {/* ── Activar/Desactivar ── */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
           <label className="flex items-center justify-between cursor-pointer">
             <div>
               <p className="font-semibold text-gray-900">Estado del bot</p>
@@ -553,6 +557,32 @@ export default function WhatsAppBotPage() {
               />
             </button>
           </label>
+
+          <div className="border-t border-gray-100 pt-4">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <p className="font-semibold text-gray-900">Modo restaurante 🍽️</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {config.is_restaurant
+                    ? '✅ Activo — el menú principal muestra "Ver menú" con categorías de platillos'
+                    : '⏸️ Desactivado — el bot funciona como tienda estándar'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfig((c) => ({ ...c, is_restaurant: !c.is_restaurant }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  config.is_restaurant ? 'bg-orange-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    config.is_restaurant ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </label>
+          </div>
         </div>
 
         {/* ── Credenciales ── */}
