@@ -33,17 +33,14 @@ export async function saveMessage(
   content: string,
   waMessageId?: string,
 ) {
-  try {
-    await db.from('whatsapp_messages').insert({
-      tenant_id: tenantId,
-      customer_phone: customerPhone,
-      direction,
-      content,
-      ...(waMessageId ? { wa_message_id: waMessageId } : {}),
-    })
-  } catch (err) {
-    console.error('[WA bot] error guardando mensaje:', err)
-  }
+  const { error } = await db.from('whatsapp_messages').insert({
+    tenant_id: tenantId,
+    customer_phone: customerPhone,
+    direction,
+    content,
+    ...(waMessageId ? { wa_message_id: waMessageId } : {}),
+  })
+  if (error) console.error('[WA bot] saveMessage error:', error.message, '| tenant:', tenantId)
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -947,10 +944,9 @@ export async function handleIncomingMessage(
   }
 
   // ── Mensajes de texto ──────────────────────────────────────────────────────
+  // Nota: el webhook ya guarda el texto inbound antes de llamar aquí.
   if (msg.type === 'text' && msg.text) {
     const state = await getConversationState(db, tenantId, msg.from)
-
-    await saveMessage(db, tenantId, msg.from, 'inbound', msg.text, msg.messageId)
 
     if (state === 'order_lookup') {
       return handleOrderLookup(cfg, msg.from, msg.text, tenantId, db, flows)
