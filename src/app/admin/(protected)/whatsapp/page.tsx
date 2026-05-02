@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Bot, Save, Eye, EyeOff, Copy, CheckCircle, ExternalLink, Info,
   ImagePlus, X, Plus, Trash2, ChevronDown, ChevronUp, GripVertical,
+  Send, RefreshCw, FileText,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -147,6 +148,7 @@ interface BotConfig {
   access_token:          string
   access_token_preview?: string
   verify_token:          string
+  waba_id:               string
   is_active:             boolean
   is_restaurant:         boolean
   welcome_message:       string
@@ -155,6 +157,18 @@ interface BotConfig {
   orders_ask_phone:      string
   support_message:       string
   no_orders_message:     string
+}
+
+interface MetaTemplate {
+  name:       string
+  status:     string
+  language:   string
+  category:   string
+  components: Array<{
+    type:    string
+    text?:   string
+    example?: { body_text?: string[][]; header_text?: string[] }
+  }>
 }
 
 type StepType = 'products' | 'orders' | 'support' | 'custom' | 'restaurant_menu' | 'promotions'
@@ -188,6 +202,7 @@ const DEFAULT_CONFIG: BotConfig = {
   phone_number_id:   '',
   access_token:      '',
   verify_token:      '',
+  waba_id:           '',
   is_active:         false,
   is_restaurant:     false,
   welcome_message:   '¡Hola! 👋 Bienvenido a nuestra tienda. ¿En qué te puedo ayudar?',
@@ -283,6 +298,17 @@ export default function WhatsAppBotPage() {
   const [flowsLoading, setFlowsLoading] = useState(true)
   const [flowsSaving, setFlowsSaving]   = useState(false)
 
+  // Templates state
+  const [templates, setTemplates]               = useState<MetaTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<MetaTemplate | null>(null)
+  const [templatePhone, setTemplatePhone]       = useState('')
+  const [templateBodyParams, setTemplateBodyParams] = useState<string[]>([''])
+  const [templateHeaderParams, setTemplateHeaderParams] = useState<string[]>([])
+  const [templateManualName, setTemplateManualName]     = useState('')
+  const [templateManualLang, setTemplateManualLang]     = useState('es_MX')
+  const [sendingTemplate, setSendingTemplate]           = useState(false)
+
   // ── Load config & flows ──────────────────────────────────────────────────
   useEffect(() => {
     setWebhookUrl(`${window.location.origin}/api/whatsapp/webhook`)
@@ -296,6 +322,7 @@ export default function WhatsAppBotPage() {
             access_token:         '',
             access_token_preview: data.access_token_preview,
             verify_token:         data.verify_token         ?? '',
+            waba_id:              data.waba_id              ?? '',
             is_active:            data.is_active            ?? false,
             welcome_message:      data.welcome_message      ?? DEFAULT_CONFIG.welcome_message,
             welcome_image_url:    data.welcome_image_url    ?? '',
@@ -427,6 +454,84 @@ export default function WhatsAppBotPage() {
       toast.error('Error inesperado')
     } finally {
       setFlowsSaving(false)
+    }
+  }
+
+  // ── Template helpers ─────────────────────────────────────────────────────
+  const loadTemplates = async () => {
+    setTemplatesLoading(true)
+    try {
+      const res = await fetch('/api/admin/whatsapp/templates')
+      const data = await res.json()
+      if (data.error) {
+        toast.error(data.error)
+      } else {
+        setTemplates(data.templates ?? [])
+        if ((data.templates ?? []).length === 0) {
+          toast('No se encontraron plantillas aprobadas en Meta.', { icon: 'ℹ️' })
+        } else {
+          toast.success(`${data.templates.length} plantilla(s) cargada(s)`)
+        }
+      }
+    } catch {
+      toast.error('Error al cargar plantillas')
+    } finally {
+      setTemplatesLoading(false)
+    }
+  }
+
+  const handleSelectTemplate = (name: string) => {
+    const tpl = templates.find((t) => t.name === name) ?? null
+    setSelectedTemplate(tpl)
+    if (tpl) {
+      // Detectar cuántas variables tiene el cuerpo
+      const bodyComp = tpl.components.find((c) => c.type === 'BODY')
+      const bodyText  = bodyComp?.text ?? ''
+      const varCount  = (bodyText.match(/\{\{\d+\}\}/g) ?? []).length
+      setTemplateBodyParams(Array.from({ length: varCount }, () => ''))
+
+      const headerComp = tpl.components.find((c) => c.type === 'HEADER')
+      const headerText = headerComp?.text ?? ''
+      const hVarCount  = (headerText.match(/\{\{\d+\}\}/g) ?? []).length
+      setTemplateHeaderParams(Array.from({ length: hVarCount }, () => ''))
+
+      setTemplateManualName(tpl.name)
+      setTemplateManualLang(tpl.language)
+    }
+  }
+
+  const handleSendTemplate = async () => {
+    const name = selectedTemplate ? selectedTemplate.name : templateManualName.trim()
+    const lang = selectedTemplate ? selectedTemplate.language : templateManualLang.trim()
+    if (!name) { toast.error('Ingresa el nombre de la plantilla'); return }
+    if (!templatePhone.trim()) { toast.error('Ingresa el número de teléfono del destinatario'); return }
+
+    setSendingTemplate(true)
+    try {
+      const res = await fetch('/api/admin/whatsapp/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to:           templatePhone.trim(),
+          templateName: name,
+          languageCode: lang,
+          bodyParams:   templateBodyParams.filter(Boolean),
+          headerParams: templateHeaderParams.filter(Boolean),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Error al enviar la plantilla')
+      } else {
+        toast.success('¡Plantilla enviada exitosamente!')
+        setTemplatePhone('')
+        setTemplateBodyParams(selectedTemplate ? Array.from({ length: templateBodyParams.length }, () => '') : [''])
+        setTemplateHeaderParams([])
+      }
+    } catch {
+      toast.error('Error inesperado')
+    } finally {
+      setSendingTemplate(false)
     }
   }
 
@@ -646,6 +751,23 @@ export default function WhatsAppBotPage() {
             />
             <p className="text-xs text-gray-400 mt-1">
               Cualquier texto que tú elijas. Debes poner el mismo valor al configurar el webhook en Meta.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              WABA ID <span className="text-gray-400 font-normal">(opcional — para usar plantillas)</span>
+            </label>
+            <input
+              type="text"
+              value={config.waba_id}
+              onChange={(e) => setConfig((c) => ({ ...c, waba_id: e.target.value }))}
+              placeholder="123456789012345"
+              className={inputClass}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              WhatsApp Business Account ID. En Meta: Business Manager → WhatsApp → Cuentas → ID de cuenta.
+              Necesario para cargar y enviar plantillas aprobadas.
             </p>
           </div>
 
@@ -872,6 +994,195 @@ export default function WhatsAppBotPage() {
           >
             <Save className="w-4 h-4" />
             {flowsSaving ? 'Guardando flujos...' : 'Guardar flujos'}
+          </button>
+        </div>
+      </div>
+
+      {/* ════════════════════════════════════════════════
+          SECCIÓN 3 — Plantillas de Meta
+      ════════════════════════════════════════════════ */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-green-600" />
+              Plantillas de Meta (Templates)
+            </h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Envía mensajes con plantillas aprobadas por Meta Business. Útil para iniciar conversaciones o campañas.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadTemplates}
+            disabled={templatesLoading || !config.waba_id}
+            title={!config.waba_id ? 'Configura el WABA ID para cargar plantillas' : 'Cargar plantillas desde Meta'}
+            className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 text-xs font-medium px-3 py-2 rounded-lg transition-colors shrink-0"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${templatesLoading ? 'animate-spin' : ''}`} />
+            Cargar desde Meta
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Info box */}
+          <div className="bg-amber-50 rounded-xl p-4 text-xs text-amber-800 space-y-1">
+            <p className="font-semibold">¿Cuándo usar plantillas?</p>
+            <ul className="list-disc ml-4 space-y-0.5 text-amber-700">
+              <li>Para <strong>iniciar conversaciones</strong> con clientes (fuera de la ventana de 24 h).</li>
+              <li>Para enviar <strong>notificaciones</strong>: confirmación de pedido, recordatorio, promo, etc.</li>
+              <li>Las plantillas deben estar <strong>aprobadas por Meta</strong> antes de usarlas.</li>
+            </ul>
+          </div>
+
+          {/* Si hay plantillas cargadas desde Meta, mostrar selector */}
+          {templates.length > 0 ? (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Seleccionar plantilla</label>
+                <select
+                  value={selectedTemplate?.name ?? ''}
+                  onChange={(e) => handleSelectTemplate(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                >
+                  <option value="">— Selecciona una plantilla —</option>
+                  {templates.map((t) => (
+                    <option key={t.name} value={t.name}>
+                      {t.name} · {t.language} · {t.category}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedTemplate && (
+                <div className="bg-gray-50 rounded-xl p-4 text-xs text-gray-600 space-y-1">
+                  {selectedTemplate.components.map((c, i) => (
+                    <div key={i}>
+                      <span className="font-semibold uppercase text-gray-400">{c.type}: </span>
+                      {c.text ?? '—'}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Entrada manual si no hay plantillas cargadas */
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la plantilla</label>
+                <input
+                  type="text"
+                  value={templateManualName}
+                  onChange={(e) => setTemplateManualName(e.target.value)}
+                  placeholder="hello_world"
+                  className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Idioma</label>
+                <input
+                  type="text"
+                  value={templateManualLang}
+                  onChange={(e) => setTemplateManualLang(e.target.value)}
+                  placeholder="es_MX"
+                  className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+                <p className="text-[10px] text-gray-400 mt-0.5">Ej: es_MX, es, en_US</p>
+              </div>
+            </div>
+          )}
+
+          {/* Variables del encabezado (header) */}
+          {templateHeaderParams.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-600">Variables del encabezado</p>
+              {templateHeaderParams.map((val, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-12 shrink-0">&#123;&#123;{i + 1}&#125;&#125;</span>
+                  <input
+                    type="text"
+                    value={val}
+                    onChange={(e) => {
+                      const next = [...templateHeaderParams]
+                      next[i] = e.target.value
+                      setTemplateHeaderParams(next)
+                    }}
+                    placeholder={`Valor ${i + 1}`}
+                    className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Variables del cuerpo (body) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-gray-600">Variables del cuerpo &#123;&#123;1&#125;&#125;, &#123;&#123;2&#125;&#125;…</p>
+              {!selectedTemplate && (
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setTemplateBodyParams((p) => [...p, ''])}
+                    className="text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-0.5"
+                  >
+                    <Plus className="w-3 h-3" /> Agregar
+                  </button>
+                  {templateBodyParams.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setTemplateBodyParams((p) => p.slice(0, -1))}
+                      className="text-xs text-red-400 hover:text-red-600 font-medium flex items-center gap-0.5 ml-2"
+                    >
+                      <X className="w-3 h-3" /> Quitar
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            {templateBodyParams.length === 0 && (
+              <p className="text-xs text-gray-400 italic">Esta plantilla no tiene variables en el cuerpo.</p>
+            )}
+            {templateBodyParams.map((val, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 w-12 shrink-0">&#123;&#123;{i + 1}&#125;&#125;</span>
+                <input
+                  type="text"
+                  value={val}
+                  onChange={(e) => {
+                    const next = [...templateBodyParams]
+                    next[i] = e.target.value
+                    setTemplateBodyParams(next)
+                  }}
+                  placeholder={`Valor ${i + 1}`}
+                  className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Número destinatario */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Número de teléfono del destinatario</label>
+            <input
+              type="text"
+              value={templatePhone}
+              onChange={(e) => setTemplatePhone(e.target.value)}
+              placeholder="521234567890 (con código de país, sin +)"
+              className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+            <p className="text-xs text-gray-400 mt-1">Incluye el código de país. Ej: 521234567890 para México.</p>
+          </div>
+
+          {/* Botón enviar */}
+          <button
+            type="button"
+            onClick={handleSendTemplate}
+            disabled={sendingTemplate || (!templateManualName && !selectedTemplate)}
+            className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-xl transition-colors"
+          >
+            <Send className="w-4 h-4" />
+            {sendingTemplate ? 'Enviando...' : 'Enviar plantilla'}
           </button>
         </div>
       </div>

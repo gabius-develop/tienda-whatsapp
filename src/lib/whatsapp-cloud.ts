@@ -197,3 +197,88 @@ export function markAsRead(
     message_id: messageId,
   })
 }
+
+/**
+ * Envía un mensaje de plantilla (template) aprobada por Meta.
+ * bodyParams: valores de texto para los variables {{1}}, {{2}}, … del cuerpo.
+ * headerParams: valores de texto para los variables del encabezado (opcional).
+ */
+export function sendTemplateMessage(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  templateName: string,
+  languageCode: string,
+  bodyParams: string[] = [],
+  headerParams: string[] = [],
+): Promise<boolean> {
+  const components: object[] = []
+
+  if (headerParams.length > 0) {
+    components.push({
+      type: 'header',
+      parameters: headerParams.map((text) => ({ type: 'text', text })),
+    })
+  }
+
+  if (bodyParams.length > 0) {
+    components.push({
+      type: 'body',
+      parameters: bodyParams.map((text) => ({ type: 'text', text })),
+    })
+  }
+
+  return post(phoneNumberId, accessToken, {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+      ...(components.length > 0 ? { components } : {}),
+    },
+  })
+}
+
+/**
+ * Obtiene las plantillas aprobadas desde la API de Meta.
+ * Requiere el WABA ID (WhatsApp Business Account ID) y el access token.
+ */
+export async function fetchMetaTemplates(
+  wabaId: string,
+  accessToken: string,
+): Promise<MetaTemplate[]> {
+  try {
+    const url = `https://graph.facebook.com/${WA_API_VERSION}/${wabaId}/message_templates?fields=name,status,language,category,components&limit=50`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      console.error('[WA Cloud API] fetchMetaTemplates error:', res.status, text)
+      return []
+    }
+    const json = await res.json() as { data?: MetaTemplate[] }
+    return (json.data ?? []).filter((t) => t.status === 'APPROVED')
+  } catch (err) {
+    console.error('[WA Cloud API] fetchMetaTemplates fetch error:', err)
+    return []
+  }
+}
+
+export interface MetaTemplate {
+  name:       string
+  status:     string
+  language:   string
+  category:   string
+  components: MetaTemplateComponent[]
+}
+
+export interface MetaTemplateComponent {
+  type:    string
+  format?: string
+  text?:   string
+  buttons?: Array<{ type: string; text: string }>
+  example?: { body_text?: string[][]; header_text?: string[] }
+}

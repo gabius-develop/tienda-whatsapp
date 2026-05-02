@@ -237,7 +237,7 @@ async function addPromoToCart(
   promotionId: string,
   title: string,
   price: number,
-) {
+): Promise<boolean> {
   const { data: existing, error: selErr } = await db
     .from('bot_cart_items')
     .select('id, quantity')
@@ -253,20 +253,27 @@ async function addPromoToCart(
       .from('bot_cart_items')
       .update({ quantity: existing.quantity + 1 })
       .eq('id', existing.id)
-    if (error) console.error('[WA bot] addPromoToCart UPDATE error:', error.message)
+    if (error) {
+      console.error('[WA bot] addPromoToCart UPDATE error:', error.message)
+      return false
+    }
   } else {
     const { error } = await db
       .from('bot_cart_items')
       .insert({
-        tenant_id:    tenantId,
+        tenant_id:      tenantId,
         customer_phone: customerPhone,
-        promotion_id: promotionId,
-        item_name:    title,
-        item_price:   price,
-        quantity:     1,
+        promotion_id:   promotionId,
+        item_name:      title,
+        item_price:     price,
+        quantity:       1,
       })
-    if (error) console.error('[WA bot] addPromoToCart INSERT error:', error.message)
+    if (error) {
+      console.error('[WA bot] addPromoToCart INSERT error:', error.message)
+      return false
+    }
   }
+  return true
 }
 
 async function getCartItems(
@@ -788,8 +795,9 @@ async function handleCollectingAddress(
       orderItems.map(oi => ({ ...oi, order_id: order.id, tenant_id: tenantId })),
     )
 
-    // Decrementar stock
+    // Decrementar stock (solo para productos, no para promociones)
     for (const oi of orderItems) {
+      if (!oi.product_id) continue // las promos no tienen stock
       const { data: cur } = await db
         .from('products')
         .select('stock')
@@ -1159,7 +1167,14 @@ export async function handleIncomingMessage(
         return sendPostActionMenu(cfg, msg.from, db, tenantId)
       }
 
-      await addPromoToCart(db, tenantId, msg.from, promo.id, promo.title, promo.price)
+      const added = await addPromoToCart(db, tenantId, msg.from, promo.id, promo.title, promo.price)
+
+      if (!added) {
+        const errText = '❌ Hubo un problema al agregar la promoción al carrito. Por favor intenta de nuevo o escríbenos para ayudarte.'
+        await saveMessage(db, tenantId, msg.from, 'outbound', errText)
+        await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, errText)
+        return sendPostActionMenu(cfg, msg.from, db, tenantId)
+      }
 
       const cartItems = await getCartItems(db, tenantId, msg.from)
       const total = cartTotal(cartItems)
