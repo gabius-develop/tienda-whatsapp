@@ -300,6 +300,8 @@ export default function WhatsAppBotPage() {
 
   // Templates state
   const [templates, setTemplates]               = useState<MetaTemplate[]>([])
+  const [rawTemplateData, setRawTemplateData]   = useState<unknown[]>([])
+  const [showRawData, setShowRawData]           = useState(false)
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<MetaTemplate | null>(null)
   const [selectedTemplateKey, setSelectedTemplateKey] = useState('')
@@ -471,10 +473,11 @@ export default function WhatsAppBotPage() {
     try {
       const res = await fetch('/api/admin/whatsapp/templates')
       const data = await res.json()
-      if (data.error) {
+      if (data.error && (data.templates ?? []).length === 0) {
         toast.error(data.error)
       } else {
         setTemplates(data.templates ?? [])
+        setRawTemplateData(data.rawData ?? [])
         if ((data.templates ?? []).length === 0) {
           toast('No se encontraron plantillas aprobadas en Meta.', { icon: 'ℹ️' })
         } else {
@@ -1192,33 +1195,36 @@ export default function WhatsAppBotPage() {
             </div>
           )}
 
-          {/* Variables del cuerpo (body) */}
+          {/* Variables del cuerpo (body) — siempre editables */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-gray-600">Variables del cuerpo &#123;&#123;1&#125;&#125;, &#123;&#123;2&#125;&#125;…</p>
-              {!selectedTemplate && (
-                <div className="flex gap-1">
+              <p className="text-xs font-medium text-gray-600">
+                Variables del cuerpo &#123;&#123;1&#125;&#125;, &#123;&#123;2&#125;&#125;…
+                {selectedTemplate && templateBodyParams.length === 0 && (
+                  <span className="ml-1 text-amber-600 font-normal">(no detectadas automáticamente — agrégalas manualmente)</span>
+                )}
+              </p>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setTemplateBodyParams((p) => [...p, ''])}
+                  className="text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-0.5"
+                >
+                  <Plus className="w-3 h-3" /> Agregar
+                </button>
+                {templateBodyParams.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setTemplateBodyParams((p) => [...p, ''])}
-                    className="text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-0.5"
+                    onClick={() => setTemplateBodyParams((p) => p.slice(0, -1))}
+                    className="text-xs text-red-400 hover:text-red-600 font-medium flex items-center gap-0.5 ml-2"
                   >
-                    <Plus className="w-3 h-3" /> Agregar
+                    <X className="w-3 h-3" /> Quitar
                   </button>
-                  {templateBodyParams.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setTemplateBodyParams((p) => p.slice(0, -1))}
-                      className="text-xs text-red-400 hover:text-red-600 font-medium flex items-center gap-0.5 ml-2"
-                    >
-                      <X className="w-3 h-3" /> Quitar
-                    </button>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
             {templateBodyParams.length === 0 && (
-              <p className="text-xs text-gray-400 italic">Esta plantilla no tiene variables en el cuerpo.</p>
+              <p className="text-xs text-gray-400 italic">Sin variables — si tu plantilla tiene &#123;&#123;1&#125;&#125; haz clic en Agregar.</p>
             )}
             {templateBodyParams.map((val, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -1231,12 +1237,57 @@ export default function WhatsAppBotPage() {
                     next[i] = e.target.value
                     setTemplateBodyParams(next)
                   }}
-                  placeholder={`Valor ${i + 1}`}
+                  placeholder={`Valor para {{${i + 1}}}`}
                   className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                 />
               </div>
             ))}
           </div>
+
+          {/* Panel debug — datos raw de Meta */}
+          {rawTemplateData.length > 0 && (
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowRawData((v) => !v)}
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 text-xs font-medium text-gray-600 hover:bg-gray-100"
+              >
+                <span>🔍 Datos raw de Meta (para depurar código de idioma)</span>
+                <span>{showRawData ? '▲' : '▼'}</span>
+              </button>
+              {showRawData && (
+                <div className="p-3 overflow-x-auto">
+                  <table className="text-xs w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="text-left px-2 py-1 border border-gray-200">name</th>
+                        <th className="text-left px-2 py-1 border border-gray-200">language</th>
+                        <th className="text-left px-2 py-1 border border-gray-200">status</th>
+                        <th className="text-left px-2 py-1 border border-gray-200">category</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rawTemplateData.map((t, i) => {
+                        const tpl = t as Record<string, unknown>
+                        return (
+                          <tr key={i} className="even:bg-gray-50">
+                            <td className="px-2 py-1 border border-gray-200 font-mono">{String(tpl.name ?? '')}</td>
+                            <td className="px-2 py-1 border border-gray-200 font-mono font-bold text-green-700">
+                              {typeof tpl.language === 'object'
+                                ? JSON.stringify(tpl.language)
+                                : String(tpl.language ?? '')}
+                            </td>
+                            <td className="px-2 py-1 border border-gray-200">{String(tpl.status ?? '')}</td>
+                            <td className="px-2 py-1 border border-gray-200">{String(tpl.category ?? '')}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Número destinatario */}
           <div>
