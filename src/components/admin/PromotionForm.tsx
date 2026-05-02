@@ -16,6 +16,9 @@ const promotionSchema = z.object({
   title: z.string().min(2, 'El título es requerido'),
   description: z.string().optional(),
   discount_label: z.string().optional(),
+  price: z.string().optional().transform((v) => (v && v.trim() !== '' ? parseFloat(v) : null)).pipe(
+    z.number().min(0, 'El precio no puede ser negativo').nullable()
+  ),
   badge_color: z.string().default('green'),
   sort_order: z.string().transform((v) => parseInt(v, 10)).pipe(z.number().int().min(0)),
   is_active: z.boolean(),
@@ -57,6 +60,7 @@ export default function PromotionForm({ promotion, onSuccess }: PromotionFormPro
       title: promotion?.title ?? '',
       description: promotion?.description ?? '',
       discount_label: promotion?.discount_label ?? '',
+      price: promotion?.price != null ? promotion.price.toString() : '',
       badge_color: promotion?.badge_color ?? 'green',
       sort_order: promotion?.sort_order?.toString() ?? '0',
       is_active: promotion?.is_active ?? true,
@@ -161,6 +165,20 @@ export default function PromotionForm({ promotion, onSuccess }: PromotionFormPro
         </div>
 
         <Input label="Etiqueta de descuento" placeholder="Ej. 20% OFF, 2x1, GRATIS envío" {...register('discount_label')} />
+
+        <div>
+          <Input
+            label="Precio (opcional)"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Ej. 99.00"
+            {...register('price')}
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Si agregas un precio, los clientes podrán añadir esta promoción al carrito desde el bot de WhatsApp.
+          </p>
+        </div>
 
         <Input label="Orden de aparición" type="number" min="0" placeholder="0" {...register('sort_order')} />
 

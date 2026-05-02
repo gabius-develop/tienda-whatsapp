@@ -82,6 +82,7 @@ export interface Promotion {
   description: string | null
   image_url: string | null
   discount_label: string | null
+  price: number | null
   badge_color: string
   is_active: boolean
   sort_order: number

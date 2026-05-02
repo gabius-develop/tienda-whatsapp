@@ -105,8 +105,12 @@ interface CartProduct {
 }
 
 interface CartRow {
-  quantity: number
-  products: CartProduct | null
+  quantity:     number
+  product_id:   string | null
+  promotion_id: string | null
+  item_name:    string | null
+  item_price:   number | null
+  products:     CartProduct | null
 }
 
 // ─── Conversación ─────────────────────────────────────────────────────────────
@@ -226,6 +230,45 @@ async function addToCart(
   }
 }
 
+async function addPromoToCart(
+  db: ReturnType<typeof srvClient>,
+  tenantId: string,
+  customerPhone: string,
+  promotionId: string,
+  title: string,
+  price: number,
+) {
+  const { data: existing, error: selErr } = await db
+    .from('bot_cart_items')
+    .select('id, quantity')
+    .eq('tenant_id', tenantId)
+    .eq('customer_phone', customerPhone)
+    .eq('promotion_id', promotionId)
+    .maybeSingle()
+
+  if (selErr) console.error('[WA bot] addPromoToCart SELECT error:', selErr.message)
+
+  if (existing) {
+    const { error } = await db
+      .from('bot_cart_items')
+      .update({ quantity: existing.quantity + 1 })
+      .eq('id', existing.id)
+    if (error) console.error('[WA bot] addPromoToCart UPDATE error:', error.message)
+  } else {
+    const { error } = await db
+      .from('bot_cart_items')
+      .insert({
+        tenant_id:    tenantId,
+        customer_phone: customerPhone,
+        promotion_id: promotionId,
+        item_name:    title,
+        item_price:   price,
+        quantity:     1,
+      })
+    if (error) console.error('[WA bot] addPromoToCart INSERT error:', error.message)
+  }
+}
+
 async function getCartItems(
   db: ReturnType<typeof srvClient>,
   tenantId: string,
@@ -233,7 +276,7 @@ async function getCartItems(
 ): Promise<CartRow[]> {
   const { data, error } = await db
     .from('bot_cart_items')
-    .select('quantity, products(id, name, price, stock)')
+    .select('quantity, product_id, promotion_id, item_name, item_price, products(id, name, price, stock)')
     .eq('tenant_id', tenantId)
     .eq('customer_phone', customerPhone)
   if (error) console.error('[WA bot] getCartItems error:', error.message)
@@ -254,9 +297,18 @@ async function clearBotCart(
 
 function cartTotal(items: CartRow[]): number {
   return items.reduce((sum, row) => {
-    const p = row.products
-    return sum + (p ? p.price * row.quantity : 0)
+    if (row.products) return sum + row.products.price * row.quantity
+    if (row.item_price) return sum + row.item_price * row.quantity
+    return sum
   }, 0)
+}
+
+function cartRowName(row: CartRow): string {
+  return row.products?.name ?? row.item_name ?? 'Artículo'
+}
+
+function cartRowPrice(row: CartRow): number {
+  return row.products?.price ?? row.item_price ?? 0
 }
 
 // ─── Menú principal (siempre incluye opciones del sistema) ────────────────────
@@ -571,8 +623,8 @@ async function handleViewCart(
 
   const total = cartTotal(cartItems)
   const lines = cartItems
-    .filter(row => row.products)
-    .map(row => `• ${row.products!.name} x${row.quantity} — ${formatCurrency(row.products!.price * row.quantity)}`)
+    .filter(row => row.products || row.item_price)
+    .map(row => `• ${cartRowName(row)} x${row.quantity} — ${formatCurrency(cartRowPrice(row) * row.quantity)}`)
 
   const text = `🛒 *Tu carrito:*\n\n${lines.join('\n')}\n\n💰 *Total: ${formatCurrency(total)}*`
   await saveMessage(db, tenantId, to, 'outbound', text)
@@ -649,44 +701,69 @@ async function handleCollectingAddress(
     return sendPostActionMenu(cfg, to, db, tenantId)
   }
 
-  // Verificar precios y stock directamente desde la DB (nunca confiar en cache)
+  // Verificar precios y stock directamente desde la DB
   type OrderItem = {
-    product_id: string
+    product_id:   string | null
     product_name: string
-    quantity: number
-    unit_price: number
-    subtotal: number
+    quantity:     number
+    unit_price:   number
+    subtotal:     number
   }
 
   let total = 0
   const orderItems: OrderItem[] = []
 
   for (const row of cartItems) {
-    if (!row.products) continue
-    const { data: fresh } = await db
-      .from('products')
-      .select('id, name, price, stock')
-      .eq('id', row.products.id)
-      .eq('tenant_id', tenantId)
-      .single()
+    // ── Producto normal: verificar stock fresco ──────────────────────────────
+    if (row.product_id) {
+      const { data: fresh } = await db
+        .from('products')
+        .select('id, name, price, stock')
+        .eq('id', row.product_id)
+        .eq('tenant_id', tenantId)
+        .single()
 
-    if (!fresh || fresh.stock < row.quantity) continue // producto sin stock suficiente, se omite
+      if (!fresh || fresh.stock < row.quantity) continue // sin stock, se omite
 
-    const subtotal = fresh.price * row.quantity
-    total += subtotal
-    orderItems.push({
-      product_id:   fresh.id,
-      product_name: fresh.name,
-      quantity:     row.quantity,
-      unit_price:   fresh.price,
-      subtotal,
-    })
+      const subtotal = fresh.price * row.quantity
+      total += subtotal
+      orderItems.push({
+        product_id:   fresh.id,
+        product_name: fresh.name,
+        quantity:     row.quantity,
+        unit_price:   fresh.price,
+        subtotal,
+      })
+      continue
+    }
+
+    // ── Promoción: verificar precio fresco desde DB ───────────────────────────
+    if (row.promotion_id) {
+      const { data: promo } = await db
+        .from('promotions')
+        .select('id, title, price, is_active')
+        .eq('id', row.promotion_id)
+        .eq('tenant_id', tenantId)
+        .single()
+
+      if (!promo || !promo.is_active || !promo.price) continue // promo inactiva o sin precio
+
+      const subtotal = promo.price * row.quantity
+      total += subtotal
+      orderItems.push({
+        product_id:   null,
+        product_name: promo.title,
+        quantity:     row.quantity,
+        unit_price:   promo.price,
+        subtotal,
+      })
+    }
   }
 
   if (orderItems.length === 0) {
     await clearBotCart(db, tenantId, to)
     await setConversationState(db, tenantId, to, 'idle', {})
-    const text = 'Lo sentimos, los productos de tu carrito ya no tienen stock disponible. Por favor agrega nuevos productos.'
+    const text = 'Lo sentimos, los artículos de tu carrito ya no están disponibles. Por favor agrega nuevos productos.'
     await saveMessage(db, tenantId, to, 'outbound', text)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
     return sendPostActionMenu(cfg, to, db, tenantId)
@@ -862,13 +939,13 @@ async function handlePromotions(
 ) {
   const { data: promos } = await db
     .from('promotions')
-    .select('title, description, discount_label, starts_at, ends_at')
+    .select('id, title, description, discount_label, price, starts_at, ends_at')
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
     .limit(10)
 
-  // Filtrar por fechas en JS (evita sintaxis compleja de Supabase)
+  // Filtrar por fechas en JS
   const now = new Date()
   const validPromos = (promos ?? []).filter(p => {
     if (p.starts_at && new Date(p.starts_at) > now) return false
@@ -883,9 +960,11 @@ async function handlePromotions(
     return sendPostActionMenu(cfg, to, db, tenantId)
   }
 
+  // Mostrar detalle de cada promoción
   const lines = validPromos.map(p => {
     let line = `🎁 *${p.title}*`
     if (p.discount_label) line += ` — _${p.discount_label}_`
+    if (p.price)          line += `\n💰 ${formatCurrency(p.price)}`
     if (p.description)    line += `\n${p.description}`
     return line
   })
@@ -894,7 +973,28 @@ async function handlePromotions(
   await saveMessage(db, tenantId, to, 'outbound', text)
   await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
 
-  // Opciones para continuar el flujo de compra
+  // Si hay promociones con precio, ofrecer agregarlas al carrito como lista
+  const pricedPromos = validPromos.filter(p => p.price && p.price > 0)
+
+  if (pricedPromos.length > 0) {
+    const rows = pricedPromos.map(p => ({
+      id:          `promo_add_${p.id}`,
+      title:       p.title.substring(0, 24),
+      description: `${formatCurrency(p.price!)}${p.discount_label ? ` · ${p.discount_label}` : ''}`,
+    }))
+
+    const logList = `[Lista agregar promo: ${rows.map(r => r.title).join(', ')}]`
+    await saveMessage(db, tenantId, to, 'outbound', logList)
+
+    return sendListMessage(
+      cfg.phone_number_id, cfg.access_token, to,
+      '¿Deseas agregar alguna promoción a tu carrito?',
+      'Agregar al carrito',
+      [{ title: 'Promociones disponibles', rows }],
+    )
+  }
+
+  // Sin precios configurados → solo botones de navegación
   const buttons = [
     { id: 'btn_products',  title: '🛍️ Ver productos' },
     { id: 'btn_view_cart', title: '📋 Ver carrito' },
@@ -1041,6 +1141,40 @@ export async function handleIncomingMessage(
     // ── Carrito ──────────────────────────────────────────────────────────────
     if (id.startsWith('cart_add_')) {
       return handleAddToCart(cfg, msg.from, id.replace('cart_add_', ''), tenantId, db)
+    }
+
+    if (id.startsWith('promo_add_')) {
+      const promoId = id.replace('promo_add_', '')
+      const { data: promo } = await db
+        .from('promotions')
+        .select('id, title, price, is_active')
+        .eq('id', promoId)
+        .eq('tenant_id', tenantId)
+        .single()
+
+      if (!promo || !promo.is_active || !promo.price) {
+        const text = 'Esta promoción ya no está disponible.'
+        await saveMessage(db, tenantId, msg.from, 'outbound', text)
+        await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, text)
+        return sendPostActionMenu(cfg, msg.from, db, tenantId)
+      }
+
+      await addPromoToCart(db, tenantId, msg.from, promo.id, promo.title, promo.price)
+
+      const cartItems = await getCartItems(db, tenantId, msg.from)
+      const total = cartTotal(cartItems)
+      const text = `✅ *${promo.title}* agregado al carrito.\n\n🛒 Carrito: ${cartItems.length} artículo(s) — Total: *${formatCurrency(total)}*`
+      await saveMessage(db, tenantId, msg.from, 'outbound', text)
+      await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, text)
+
+      const buttons = [
+        { id: 'btn_checkout',  title: '✅ Pedir ahora' },
+        { id: 'btn_view_cart', title: '📋 Ver carrito' },
+        { id: 'btn_products',  title: '🛍️ Ver productos' },
+      ]
+      const log = `[${buttons.map(b => b.title).join(' | ')}]`
+      await saveMessage(db, tenantId, msg.from, 'outbound', log)
+      return sendButtonMessage(cfg.phone_number_id, cfg.access_token, msg.from, '¿Qué deseas hacer?', buttons)
     }
     if (id === 'btn_view_cart')  return handleViewCart(cfg, msg.from, tenantId, db)
     if (id === 'btn_checkout')   return handleBotCheckout(cfg, msg.from, tenantId, db)
