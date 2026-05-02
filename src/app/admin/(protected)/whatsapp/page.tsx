@@ -157,7 +157,7 @@ interface BotConfig {
   no_orders_message:     string
 }
 
-type StepType = 'products' | 'orders' | 'support' | 'custom' | 'restaurant_menu'
+type StepType = 'products' | 'orders' | 'support' | 'custom' | 'restaurant_menu' | 'promotions'
 
 interface ChildStep {
   temp_id:           string
@@ -199,11 +199,12 @@ const DEFAULT_CONFIG: BotConfig = {
 }
 
 const STEP_TYPE_OPTIONS: { value: StepType; label: string; desc: string }[] = [
-  { value: 'products',        label: '🛍️ Ver productos', desc: 'Muestra el catálogo de productos' },
-  { value: 'restaurant_menu', label: '🍽️ Menú restaurante', desc: 'Muestra categorías del menú con pedido en bot' },
-  { value: 'orders',          label: '📦 Mis pedidos',   desc: 'Consulta de pedidos por teléfono' },
-  { value: 'support',         label: '💬 Soporte',       desc: 'Pausa el bot para atención humana' },
-  { value: 'custom',          label: '✏️ Personalizado', desc: 'Respuesta y/o imagen a tu elección' },
+  { value: 'products',        label: '🛍️ Ver productos',    desc: 'Muestra el top 5 de productos más populares' },
+  { value: 'promotions',      label: '🎁 Promociones',       desc: 'Muestra las promociones activas del admin' },
+  { value: 'restaurant_menu', label: '🍽️ Menú restaurante',  desc: 'Muestra categorías del menú con pedido en bot' },
+  { value: 'orders',          label: '📦 Mis pedidos',        desc: 'Consulta de pedidos por teléfono' },
+  { value: 'support',         label: '💬 Soporte',            desc: 'Pausa el bot para atención humana' },
+  { value: 'custom',          label: '✏️ Personalizado',      desc: 'Respuesta y/o imagen a tu elección' },
 ]
 
 function newTempId() {

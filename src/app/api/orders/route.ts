@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { getTenantBySlug, getTenantSlugFromRequest } from '@/lib/tenant'
+
+// Service role client — bypasses RLS para operaciones de servidor confiables
+function srvClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
 
 export async function POST(request: NextRequest) {
   const tenantSlug = getTenantSlugFromRequest(request)
   const tenant = await getTenantBySlug(tenantSlug)
   if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
 
+  // supabase (anon) solo para leer productos; db (service role) para escribir órdenes
   const supabase = await createClient()
+  const db = srvClient()
   const body = await request.json()
 
   const { customer_name, customer_phone, customer_address, items, total } = body
@@ -57,8 +68,8 @@ export async function POST(request: NextRequest) {
   // Total calculado en el servidor
   const verifiedTotal = verifiedItems.reduce((sum, i) => sum + i.subtotal, 0)
 
-  // 2. Crear el pedido con el total verificado
-  const { data: order, error: orderError } = await supabase
+  // 2. Crear el pedido con el total verificado (service role para evitar RLS anon)
+  const { data: order, error: orderError } = await db
     .from('orders')
     .insert([{
       customer_name,
@@ -77,7 +88,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Crear items del pedido con precios verificados
-  const { error: itemsError } = await supabase.from('order_items').insert(
+  const { error: itemsError } = await db.from('order_items').insert(
     verifiedItems.map((item) => ({ ...item, order_id: order.id, tenant_id: tenant.id }))
   )
   if (itemsError) {
@@ -86,7 +97,7 @@ export async function POST(request: NextRequest) {
 
   // 4. Descontar stock
   for (const item of verifiedItems) {
-    const { data: product } = await supabase
+    const { data: product } = await db
       .from('products')
       .select('stock')
       .eq('id', item.product_id)
@@ -94,7 +105,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (product) {
-      await supabase
+      await db
         .from('products')
         .update({ stock: Math.max(0, product.stock - item.quantity), updated_at: new Date().toISOString() })
         .eq('id', item.product_id)

@@ -268,21 +268,30 @@ async function sendDefaultMenu(
   tenantId: string,
 ) {
   const menuHeader = cfg.menu_header || '¿En qué te puedo ayudar?'
-  const buttons = cfg.is_restaurant
+
+  const rows = cfg.is_restaurant
     ? [
-        { id: 'btn_restaurant', title: '🍽️ Ver menú' },
-        { id: 'btn_orders',     title: '📦 Mis pedidos' },
-        { id: 'btn_support',    title: '💬 Con un operador' },
+        { id: 'btn_restaurant', title: '🍽️ Ver menú',          description: 'Nuestros platillos' },
+        { id: 'btn_promotions', title: '🎁 Promociones',         description: 'Ofertas especiales' },
+        { id: 'btn_orders',     title: '📦 Mis pedidos',         description: 'Consulta tu pedido' },
+        { id: 'btn_support',    title: '💬 Con un operador',     description: 'Hablar con alguien' },
       ]
     : [
-        { id: 'btn_products', title: '🛍️ Ver productos' },
-        { id: 'btn_orders',   title: '📦 Mis pedidos' },
-        { id: 'btn_support',  title: '💬 Con un operador' },
+        { id: 'btn_products',   title: '🛍️ Ver productos',      description: 'Nuestro catálogo' },
+        { id: 'btn_promotions', title: '🎁 Promociones',         description: 'Ofertas especiales' },
+        { id: 'btn_orders',     title: '📦 Mis pedidos',         description: 'Consulta tu pedido' },
+        { id: 'btn_support',    title: '💬 Con un operador',     description: 'Hablar con alguien' },
       ]
 
-  const content = `${menuHeader}\n[${buttons.map(b => b.title).join(' | ')}]`
+  const content = `${menuHeader}\n[${rows.map(r => r.title).join(' | ')}]`
   await saveMessage(db, tenantId, to, 'outbound', content)
-  return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, menuHeader, buttons)
+
+  return sendListMessage(
+    cfg.phone_number_id, cfg.access_token, to,
+    menuHeader,
+    'Ver opciones',
+    [{ title: 'Opciones disponibles', rows }],
+  )
 }
 
 // ─── Bienvenida inicial ────────────────────────────────────────────────────────
@@ -338,7 +347,7 @@ async function sendPostActionMenu(
   return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, bodyText, buttons)
 }
 
-// ─── Flujo: Ver productos ─────────────────────────────────────────────────────
+// ─── Flujo: Ver productos (top 5 más populares) ───────────────────────────────
 
 async function handleProducts(
   cfg: WaBotConfig,
@@ -347,22 +356,70 @@ async function handleProducts(
   db: ReturnType<typeof srvClient>,
   flows: FlowStep[],
 ) {
-  const { data: products } = await db
-    .from('products')
-    .select('id, name, price, category')
+  // Obtener productos más vendidos a partir de order_items
+  const { data: salesData } = await db
+    .from('order_items')
+    .select('product_id')
     .eq('tenant_id', tenantId)
-    .eq('is_active', true)
-    .order('created_at', { ascending: false })
-    .limit(10)
 
-  if (!products || products.length === 0) {
+  type Product = { id: string; name: string; price: number; category: string | null }
+  let products: Product[] = []
+
+  if (salesData && salesData.length > 0) {
+    // Contar ventas por producto en JS
+    const salesCount = new Map<string, number>()
+    for (const row of salesData) {
+      if (row.product_id) salesCount.set(row.product_id, (salesCount.get(row.product_id) ?? 0) + 1)
+    }
+    const topIds = [...salesCount.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id]) => id)
+
+    if (topIds.length > 0) {
+      const { data } = await db
+        .from('products')
+        .select('id, name, price, category')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .in('id', topIds)
+      if (data && data.length > 0) {
+        // Mantener orden de popularidad
+        const map = new Map(data.map(p => [p.id, p]))
+        products = topIds.map(id => map.get(id)).filter((p): p is Product => p !== undefined)
+      }
+    }
+  }
+
+  // Fallback: 5 productos más recientes si no hay historial de ventas
+  if (products.length === 0) {
+    const { data } = await db
+      .from('products')
+      .select('id, name, price, category')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    products = data ?? []
+  }
+
+  if (products.length === 0) {
     const text = 'Pronto tendremos productos disponibles. ¡Vuelve a visitarnos! 😊'
     await saveMessage(db, tenantId, to, 'outbound', text)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
     return sendPostActionMenu(cfg, to, db, tenantId)
   }
 
-  const byCategory: Record<string, typeof products> = {}
+  // Obtener URL de la tienda desde store_settings
+  const { data: urlRow } = await db
+    .from('store_settings')
+    .select('value')
+    .eq('tenant_id', tenantId)
+    .eq('key', 'store_url')
+    .maybeSingle()
+  const storeUrl = urlRow?.value ?? process.env.NEXT_PUBLIC_APP_URL ?? null
+
+  const byCategory: Record<string, Product[]> = {}
   for (const p of products) {
     const cat = p.category ?? 'General'
     if (!byCategory[cat]) byCategory[cat] = []
@@ -371,18 +428,30 @@ async function handleProducts(
 
   const sections = Object.entries(byCategory).map(([cat, items]) => ({
     title: cat,
-    rows: items.map(p => ({ id: `product_${p.id}`, title: p.name, description: formatCurrency(p.price) })),
+    rows: items.map(p => ({ id: `product_${p.id}`, title: p.name.substring(0, 24), description: formatCurrency(p.price) })),
   }))
 
   const productList = products.map(p => `• ${p.name} — ${formatCurrency(p.price)}`).join('\n')
-  await saveMessage(db, tenantId, to, 'outbound', `🛍️ Nuestros productos:\n${productList}`)
+  const headerText = '🛍️ Los 5 más populares'
+  await saveMessage(db, tenantId, to, 'outbound', `${headerText}:\n${productList}`)
 
-  return sendListMessage(
+  await sendListMessage(
     cfg.phone_number_id, cfg.access_token, to,
-    'Selecciona un producto para ver sus detalles:',
+    'Selecciona un producto para ver sus detalles y agregarlo al carrito:',
     'Ver productos', sections,
-    { headerText: '🛍️ Nuestros productos' },
+    { headerText },
   )
+
+  // Mensaje adicional con link a la tienda completa
+  if (storeUrl) {
+    const linkText = `🔗 ¿Quieres ver todo nuestro catálogo?\nVisítanos en: ${storeUrl}`
+    await saveMessage(db, tenantId, to, 'outbound', linkText)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, linkText)
+  } else {
+    const linkText = '🔗 Para ver nuestro catálogo completo, visita nuestra tienda en línea.'
+    await saveMessage(db, tenantId, to, 'outbound', linkText)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, linkText)
+  }
 }
 
 // ─── Flujo: Detalle de producto (con botón agregar al carrito) ────────────────
@@ -776,6 +845,59 @@ async function handleMenuCategory(
   )
 }
 
+// ─── Flujo: Promociones ───────────────────────────────────────────────────────
+
+async function handlePromotions(
+  cfg: WaBotConfig,
+  to: string,
+  tenantId: string,
+  db: ReturnType<typeof srvClient>,
+) {
+  const { data: promos } = await db
+    .from('promotions')
+    .select('title, description, discount_label, starts_at, ends_at')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .limit(10)
+
+  // Filtrar por fechas en JS (evita sintaxis compleja de Supabase)
+  const now = new Date()
+  const validPromos = (promos ?? []).filter(p => {
+    if (p.starts_at && new Date(p.starts_at) > now) return false
+    if (p.ends_at   && new Date(p.ends_at)   < now) return false
+    return true
+  })
+
+  if (validPromos.length === 0) {
+    const text = '🎁 En este momento no tenemos promociones activas. ¡Vuelve pronto para encontrar ofertas especiales! 🌟'
+    await saveMessage(db, tenantId, to, 'outbound', text)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
+    return sendPostActionMenu(cfg, to, db, tenantId)
+  }
+
+  const lines = validPromos.map(p => {
+    let line = `🎁 *${p.title}*`
+    if (p.discount_label) line += ` — _${p.discount_label}_`
+    if (p.description)    line += `\n${p.description}`
+    return line
+  })
+
+  const text = `🎉 *Nuestras Promociones*\n\n${lines.join('\n\n')}`
+  await saveMessage(db, tenantId, to, 'outbound', text)
+  await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
+
+  // Opciones para continuar el flujo de compra
+  const buttons = [
+    { id: 'btn_products',  title: '🛍️ Ver productos' },
+    { id: 'btn_view_cart', title: '📋 Ver carrito' },
+    { id: 'btn_main_menu', title: '🏠 Menú principal' },
+  ]
+  const log = `[${buttons.map(b => b.title).join(' | ')}]`
+  await saveMessage(db, tenantId, to, 'outbound', log)
+  return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, '¿Qué deseas hacer?', buttons)
+}
+
 // ─── Flujo: Mis pedidos ───────────────────────────────────────────────────────
 
 async function handleOrderLookup(
@@ -853,6 +975,11 @@ async function handleCustomFlow(
     return handleProducts(cfg, to, tenantId, db, flows)
   }
 
+  // step_type especial: promociones
+  if (step.step_type === 'promotions') {
+    return handlePromotions(cfg, to, tenantId, db)
+  }
+
   const children = await getChildFlowSteps(db, tenantId, step.id)
   if (children.length > 0) {
     const menuHeader = cfg.menu_header || '¿En qué te puedo ayudar?'
@@ -917,6 +1044,9 @@ export async function handleIncomingMessage(
       await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, text)
       return sendPostActionMenu(cfg, msg.from, db, tenantId)
     }
+
+    // ── Promociones ──────────────────────────────────────────────────────────
+    if (id === 'btn_promotions') return handlePromotions(cfg, msg.from, tenantId, db)
 
     // ── Restaurante ──────────────────────────────────────────────────────────
     if (id === 'btn_restaurant') return handleRestaurantMenu(cfg, msg.from, tenantId, db)
