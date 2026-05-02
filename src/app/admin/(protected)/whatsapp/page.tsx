@@ -484,15 +484,22 @@ export default function WhatsAppBotPage() {
     const tpl = templates.find((t) => t.name === name) ?? null
     setSelectedTemplate(tpl)
     if (tpl) {
-      // Detectar cuántas variables tiene el cuerpo
-      const bodyComp = tpl.components.find((c) => c.type === 'BODY')
+      // Detectar variables del cuerpo:
+      // 1) Contar {{N}} en el texto
+      // 2) Fallback: usar example.body_text[0].length (más confiable)
+      const bodyComp  = tpl.components.find((c) => c.type === 'BODY' || c.type === 'body')
       const bodyText  = bodyComp?.text ?? ''
-      const varCount  = (bodyText.match(/\{\{\d+\}\}/g) ?? []).length
-      setTemplateBodyParams(Array.from({ length: varCount }, () => ''))
+      const fromText  = (bodyText.match(/\{\{\d+\}\}/g) ?? []).length
+      const fromExample = bodyComp?.example?.body_text?.[0]?.length ?? 0
+      const varCount  = Math.max(fromText, fromExample)
+      setTemplateBodyParams(Array.from({ length: Math.max(varCount, 0) }, () => ''))
 
-      const headerComp = tpl.components.find((c) => c.type === 'HEADER')
+      // Detectar variables del encabezado
+      const headerComp = tpl.components.find((c) => c.type === 'HEADER' || c.type === 'header')
       const headerText = headerComp?.text ?? ''
-      const hVarCount  = (headerText.match(/\{\{\d+\}\}/g) ?? []).length
+      const hFromText  = (headerText.match(/\{\{\d+\}\}/g) ?? []).length
+      const hFromExample = headerComp?.example?.header_text?.length ?? 0
+      const hVarCount  = Math.max(hFromText, hFromExample)
       setTemplateHeaderParams(Array.from({ length: hVarCount }, () => ''))
 
       setTemplateManualName(tpl.name)
@@ -502,9 +509,22 @@ export default function WhatsAppBotPage() {
 
   const handleSendTemplate = async () => {
     const name = selectedTemplate ? selectedTemplate.name : templateManualName.trim()
-    const lang = templateManualLang.trim() // siempre editable, pre-cargado desde Meta
+    const lang = templateManualLang.trim()
     if (!name) { toast.error('Ingresa el nombre de la plantilla'); return }
+    if (!lang) { toast.error('Ingresa el código de idioma'); return }
     if (!templatePhone.trim()) { toast.error('Ingresa el número de teléfono del destinatario'); return }
+
+    // Validar que todas las variables estén llenas
+    const emptyBody = templateBodyParams.findIndex((v) => !v.trim())
+    if (emptyBody !== -1) {
+      toast.error(`Completa la variable {{${emptyBody + 1}}} del cuerpo`)
+      return
+    }
+    const emptyHeader = templateHeaderParams.findIndex((v) => !v.trim())
+    if (emptyHeader !== -1) {
+      toast.error(`Completa la variable {{${emptyHeader + 1}}} del encabezado`)
+      return
+    }
 
     setSendingTemplate(true)
     try {
@@ -515,8 +535,8 @@ export default function WhatsAppBotPage() {
           to:           templatePhone.trim(),
           templateName: name,
           languageCode: lang,
-          bodyParams:   templateBodyParams.filter(Boolean),
-          headerParams: templateHeaderParams.filter(Boolean),
+          bodyParams:   templateBodyParams,   // sin filter(Boolean) — Meta necesita todos
+          headerParams: templateHeaderParams,
         }),
       })
       const data = await res.json()
@@ -525,8 +545,8 @@ export default function WhatsAppBotPage() {
       } else {
         toast.success('¡Plantilla enviada exitosamente!')
         setTemplatePhone('')
-        setTemplateBodyParams(selectedTemplate ? Array.from({ length: templateBodyParams.length }, () => '') : [''])
-        setTemplateHeaderParams([])
+        setTemplateBodyParams(Array.from({ length: templateBodyParams.length }, () => ''))
+        setTemplateHeaderParams(Array.from({ length: templateHeaderParams.length }, () => ''))
       }
     } catch {
       toast.error('Error inesperado')
