@@ -5,7 +5,6 @@ import {
   TrendingUp, TrendingDown, ShoppingBag, DollarSign, Target,
   MessageSquare, FileSpreadsheet, FileText, RefreshCw, Package,
 } from 'lucide-react'
-import Image from 'next/image'
 import { formatCurrency } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -321,8 +320,10 @@ export default function DashboardPage() {
     metrics.prev_orders > 0 ? metrics.prev_revenue / metrics.prev_orders : 0,
   )
 
-  const totalStatusOrders = Object.values(metrics.orders_by_status).reduce((s, n) => s + n, 0)
-  const maxProductRevenue = Math.max(...metrics.top_products.map(p => p.total_revenue), 1)
+  const ordersByStatus = metrics.orders_by_status ?? {}
+  const topProducts = metrics.top_products ?? []
+  const totalStatusOrders = Object.values(ordersByStatus).reduce((s, n) => s + n, 0)
+  const maxProductRevenue = Math.max(...topProducts.map(p => p.total_revenue), 1)
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -431,7 +432,7 @@ export default function DashboardPage() {
             <p className="text-gray-400 text-sm text-center py-6">Sin pedidos en este período</p>
           ) : (
             <div className="space-y-3">
-              {Object.entries(metrics.orders_by_status).map(([status, count]) => {
+              {Object.entries(ordersByStatus).map(([status, count]) => {
                 const pctVal = (count / totalStatusOrders) * 100
                 return (
                   <div key={status}>
@@ -461,11 +462,11 @@ export default function DashboardPage() {
             <Package className="w-4 h-4 text-green-600" />
             Productos más vendidos
           </h2>
-          {metrics.top_products.length === 0 ? (
+          {topProducts.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-6">Sin ventas en este período</p>
           ) : (
             <div className="space-y-3">
-              {metrics.top_products.map((p, i) => (
+              {topProducts.map((p, i) => (
                 <div key={p.product_id}>
                   <div className="flex items-center gap-3 mb-1">
                     <span className="w-5 h-5 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">
@@ -473,7 +474,8 @@ export default function DashboardPage() {
                     </span>
                     {p.image_url ? (
                       <div className="relative w-8 h-8 rounded-lg overflow-hidden shrink-0">
-                        <Image src={p.image_url} alt={p.product_name} fill className="object-cover" />
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.image_url} alt={p.product_name} className="w-full h-full object-cover" />
                       </div>
                     ) : (
                       <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 text-sm">
