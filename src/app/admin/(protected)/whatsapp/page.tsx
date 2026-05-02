@@ -302,12 +302,20 @@ export default function WhatsAppBotPage() {
   const [templates, setTemplates]               = useState<MetaTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<MetaTemplate | null>(null)
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState('')
   const [templatePhone, setTemplatePhone]       = useState('')
-  const [templateBodyParams, setTemplateBodyParams] = useState<string[]>([''])
+  const [templateBodyParams, setTemplateBodyParams] = useState<string[]>([])
   const [templateHeaderParams, setTemplateHeaderParams] = useState<string[]>([])
   const [templateManualName, setTemplateManualName]     = useState('')
-  const [templateManualLang, setTemplateManualLang]     = useState('es_MX')
+  const [templateManualLang, setTemplateManualLang]     = useState('')
   const [sendingTemplate, setSendingTemplate]           = useState(false)
+
+  // Sincronizar idioma cuando cambia la plantilla seleccionada (red de seguridad)
+  useEffect(() => {
+    if (selectedTemplate) {
+      setTemplateManualLang(selectedTemplate.language ?? '')
+    }
+  }, [selectedTemplate])
 
   // ── Load config & flows ──────────────────────────────────────────────────
   useEffect(() => {
@@ -480,30 +488,43 @@ export default function WhatsAppBotPage() {
     }
   }
 
-  const handleSelectTemplate = (name: string) => {
-    const tpl = templates.find((t) => t.name === name) ?? null
+  const handleSelectTemplate = (key: string) => {
+    setSelectedTemplateKey(key)
+    if (!key) {
+      setSelectedTemplate(null)
+      setTemplateBodyParams([])
+      setTemplateHeaderParams([])
+      return
+    }
+    // key = "name___language" para manejar el mismo template en varios idiomas
+    const sepIdx = key.lastIndexOf('___')
+    const tplName = sepIdx >= 0 ? key.slice(0, sepIdx) : key
+    const tplLang = sepIdx >= 0 ? key.slice(sepIdx + 3) : ''
+    const tpl = templates.find((t) => t.name === tplName && t.language === tplLang)
+           ?? templates.find((t) => t.name === tplName)
+           ?? null
     setSelectedTemplate(tpl)
     if (tpl) {
       // Detectar variables del cuerpo:
       // 1) Contar {{N}} en el texto
       // 2) Fallback: usar example.body_text[0].length (más confiable)
-      const bodyComp  = tpl.components.find((c) => c.type === 'BODY' || c.type === 'body')
-      const bodyText  = bodyComp?.text ?? ''
-      const fromText  = (bodyText.match(/\{\{\d+\}\}/g) ?? []).length
+      const bodyComp    = tpl.components.find((c) => c.type === 'BODY' || c.type === 'body')
+      const bodyText    = bodyComp?.text ?? ''
+      const fromText    = (bodyText.match(/\{\{\d+\}\}/g) ?? []).length
       const fromExample = bodyComp?.example?.body_text?.[0]?.length ?? 0
-      const varCount  = Math.max(fromText, fromExample)
-      setTemplateBodyParams(Array.from({ length: Math.max(varCount, 0) }, () => ''))
+      const varCount    = Math.max(fromText, fromExample)
+      setTemplateBodyParams(Array.from({ length: varCount }, () => ''))
 
       // Detectar variables del encabezado
-      const headerComp = tpl.components.find((c) => c.type === 'HEADER' || c.type === 'header')
-      const headerText = headerComp?.text ?? ''
-      const hFromText  = (headerText.match(/\{\{\d+\}\}/g) ?? []).length
+      const headerComp   = tpl.components.find((c) => c.type === 'HEADER' || c.type === 'header')
+      const headerText   = headerComp?.text ?? ''
+      const hFromText    = (headerText.match(/\{\{\d+\}\}/g) ?? []).length
       const hFromExample = headerComp?.example?.header_text?.length ?? 0
-      const hVarCount  = Math.max(hFromText, hFromExample)
+      const hVarCount    = Math.max(hFromText, hFromExample)
       setTemplateHeaderParams(Array.from({ length: hVarCount }, () => ''))
 
       setTemplateManualName(tpl.name)
-      setTemplateManualLang(tpl.language)
+      setTemplateManualLang(tpl.language)  // también aquí por si el useEffect tarda
     }
   }
 
@@ -1061,16 +1082,19 @@ export default function WhatsAppBotPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Seleccionar plantilla</label>
                 <select
-                  value={selectedTemplate?.name ?? ''}
+                  value={selectedTemplateKey}
                   onChange={(e) => handleSelectTemplate(e.target.value)}
                   className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                 >
                   <option value="">— Selecciona una plantilla —</option>
-                  {templates.map((t) => (
-                    <option key={t.name} value={t.name}>
-                      {t.name} · {t.language} · {t.category}
-                    </option>
-                  ))}
+                  {templates.map((t) => {
+                    const key = `${t.name}___${t.language}`
+                    return (
+                      <option key={key} value={key}>
+                        {t.name} · idioma: {t.language} · {t.category}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 
@@ -1085,12 +1109,26 @@ export default function WhatsAppBotPage() {
                       </div>
                     ))}
                   </div>
-                  {/* Idioma editable — el código debe coincidir EXACTAMENTE con el aprobado en Meta */}
+                  {/* Idioma editable */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Código de idioma{' '}
-                      <span className="text-gray-400 font-normal">(edita si hay error de idioma)</span>
+                      Código de idioma
                     </label>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] text-gray-500">Meta dice:</span>
+                      <code className="text-[11px] bg-green-100 text-green-800 px-2 py-0.5 rounded font-mono font-bold">
+                        {selectedTemplate?.language ?? '—'}
+                      </code>
+                      {templateManualLang !== (selectedTemplate?.language ?? '') && (
+                        <button
+                          type="button"
+                          onClick={() => setTemplateManualLang(selectedTemplate?.language ?? '')}
+                          className="text-[10px] text-blue-600 hover:underline"
+                        >
+                          ↩ Restaurar
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="text"
                       value={templateManualLang}
@@ -1098,7 +1136,7 @@ export default function WhatsAppBotPage() {
                       className="block w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-gray-900 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
                     />
                     <p className="text-[10px] text-gray-400 mt-0.5">
-                      Debe ser exactamente el código con el que Meta aprobó la plantilla. Ej: <code>es</code>, <code>es_MX</code>, <code>es_ES</code>, <code>en_US</code>
+                      Edita solo si Meta da error de idioma. Prueba: <code>es</code>, <code>es_MX</code>, <code>en</code>, <code>en_US</code>
                     </p>
                   </div>
                 </div>
