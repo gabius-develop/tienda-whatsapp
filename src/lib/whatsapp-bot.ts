@@ -259,38 +259,56 @@ function cartTotal(items: CartRow[]): number {
   }, 0)
 }
 
-// ─── Menú hardcodeado (solo cuando NO hay flujos configurados) ─────────────────
+// ─── Menú principal (siempre incluye opciones del sistema) ────────────────────
 
 async function sendDefaultMenu(
   cfg: WaBotConfig,
   to: string,
   db: ReturnType<typeof srvClient>,
   tenantId: string,
+  flows: FlowStep[] = [],
 ) {
   const menuHeader = cfg.menu_header || '¿En qué te puedo ayudar?'
 
-  const rows = cfg.is_restaurant
+  // Opciones del sistema (siempre presentes)
+  const systemRows = cfg.is_restaurant
     ? [
-        { id: 'btn_restaurant', title: '🍽️ Ver menú',          description: 'Nuestros platillos' },
-        { id: 'btn_promotions', title: '🎁 Promociones',         description: 'Ofertas especiales' },
-        { id: 'btn_orders',     title: '📦 Mis pedidos',         description: 'Consulta tu pedido' },
-        { id: 'btn_support',    title: '💬 Con un operador',     description: 'Hablar con alguien' },
+        { id: 'btn_restaurant', title: '🍽️ Ver menú',      description: 'Nuestros platillos' },
+        { id: 'btn_promotions', title: '🎁 Promociones',    description: 'Ofertas especiales' },
+        { id: 'btn_orders',     title: '📦 Mis pedidos',    description: 'Consulta tu pedido' },
+        { id: 'btn_support',    title: '💬 Con un operador',description: 'Hablar con alguien' },
       ]
     : [
-        { id: 'btn_products',   title: '🛍️ Ver productos',      description: 'Nuestro catálogo' },
-        { id: 'btn_promotions', title: '🎁 Promociones',         description: 'Ofertas especiales' },
-        { id: 'btn_orders',     title: '📦 Mis pedidos',         description: 'Consulta tu pedido' },
-        { id: 'btn_support',    title: '💬 Con un operador',     description: 'Hablar con alguien' },
+        { id: 'btn_products',   title: '🛍️ Ver productos', description: 'Nuestro catálogo' },
+        { id: 'btn_promotions', title: '🎁 Promociones',    description: 'Ofertas especiales' },
+        { id: 'btn_orders',     title: '📦 Mis pedidos',    description: 'Consulta tu pedido' },
+        { id: 'btn_support',    title: '💬 Con un operador',description: 'Hablar con alguien' },
       ]
 
-  const content = `${menuHeader}\n[${rows.map(r => r.title).join(' | ')}]`
+  // Secciones: primero flujos personalizados (si hay), luego opciones del sistema
+  const sections: { title: string; rows: typeof systemRows }[] = []
+
+  if (flows.length > 0) {
+    const flowRows = flows.map(s => ({
+      id:          s.button_id,
+      title:       s.button_title.substring(0, 24),
+      description: '',
+    }))
+    sections.push({ title: 'Opciones', rows: flowRows })
+    sections.push({ title: 'Más opciones', rows: systemRows })
+  } else {
+    sections.push({ title: 'Opciones disponibles', rows: systemRows })
+  }
+
+  const allTitles = sections.flatMap(s => s.rows).map(r => r.title)
+  const content = `${menuHeader}\n[${allTitles.join(' | ')}]`
   await saveMessage(db, tenantId, to, 'outbound', content)
 
   return sendListMessage(
     cfg.phone_number_id, cfg.access_token, to,
     menuHeader,
     'Ver opciones',
-    [{ title: 'Opciones disponibles', rows }],
+    sections,
   )
 }
 
@@ -303,30 +321,19 @@ async function sendWelcomeAndMenu(
   db: ReturnType<typeof srvClient>,
   tenantId: string,
 ) {
-  if (flows.length === 0) {
-    if (cfg.welcome_image_url) {
-      await saveMessage(db, tenantId, to, 'outbound', `[Imagen bienvenida] ${cfg.welcome_message}`)
-      await sendImageMessage(cfg.phone_number_id, cfg.access_token, to, cfg.welcome_image_url, cfg.welcome_message)
-    } else {
-      await saveMessage(db, tenantId, to, 'outbound', cfg.welcome_message)
-      await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, cfg.welcome_message)
-    }
-    return sendDefaultMenu(cfg, to, db, tenantId)
+  const bodyText = cfg.welcome_message || cfg.menu_header || '¡Hola! ¿En qué te puedo ayudar?'
+
+  // Siempre enviar mensaje/imagen de bienvenida primero
+  if (cfg.welcome_image_url) {
+    await saveMessage(db, tenantId, to, 'outbound', `[Imagen bienvenida] ${bodyText}`)
+    await sendImageMessage(cfg.phone_number_id, cfg.access_token, to, cfg.welcome_image_url, bodyText)
+  } else {
+    await saveMessage(db, tenantId, to, 'outbound', bodyText)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, bodyText)
   }
 
-  const buttons = flows.map(s => ({ id: s.button_id, title: s.button_title.substring(0, 20) }))
-  const bodyText = cfg.welcome_message || cfg.menu_header || '¡Hola! ¿En qué te puedo ayudar?'
-  const logContent = `[Bienvenida] ${bodyText}\n[${buttons.map(b => b.title).join(' | ')}]`
-  await saveMessage(db, tenantId, to, 'outbound', logContent)
-
-  return sendButtonMessage(
-    cfg.phone_number_id,
-    cfg.access_token,
-    to,
-    bodyText,
-    buttons,
-    cfg.welcome_image_url ? { headerImageUrl: cfg.welcome_image_url } : undefined,
-  )
+  // Siempre mostrar el menú completo (con promociones)
+  return sendDefaultMenu(cfg, to, db, tenantId, flows)
 }
 
 // ─── Menú post-acción ─────────────────────────────────────────────────────────
