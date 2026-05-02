@@ -502,7 +502,7 @@ export default function WhatsAppBotPage() {
 
   const handleSendTemplate = async () => {
     const name = selectedTemplate ? selectedTemplate.name : templateManualName.trim()
-    const lang = selectedTemplate ? selectedTemplate.language : templateManualLang.trim()
+    const lang = templateManualLang.trim() // siempre editable, pre-cargado desde Meta
     if (!name) { toast.error('Ingresa el nombre de la plantilla'); return }
     if (!templatePhone.trim()) { toast.error('Ingresa el número de teléfono del destinatario'); return }
 
@@ -1055,13 +1055,32 @@ export default function WhatsAppBotPage() {
               </div>
 
               {selectedTemplate && (
-                <div className="bg-gray-50 rounded-xl p-4 text-xs text-gray-600 space-y-1">
-                  {selectedTemplate.components.map((c, i) => (
-                    <div key={i}>
-                      <span className="font-semibold uppercase text-gray-400">{c.type}: </span>
-                      {c.text ?? '—'}
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  {/* Vista previa del contenido */}
+                  <div className="bg-gray-50 rounded-xl p-4 text-xs text-gray-600 space-y-1">
+                    {selectedTemplate.components.map((c, i) => (
+                      <div key={i}>
+                        <span className="font-semibold uppercase text-gray-400">{c.type}: </span>
+                        {c.text ?? '—'}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Idioma editable — el código debe coincidir EXACTAMENTE con el aprobado en Meta */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Código de idioma{' '}
+                      <span className="text-gray-400 font-normal">(edita si hay error de idioma)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={templateManualLang}
+                      onChange={(e) => setTemplateManualLang(e.target.value)}
+                      className="block w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-gray-900 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      Debe ser exactamente el código con el que Meta aprobó la plantilla. Ej: <code>es</code>, <code>es_MX</code>, <code>es_ES</code>, <code>en_US</code>
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
