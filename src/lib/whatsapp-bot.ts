@@ -1178,9 +1178,12 @@ async function forwardMessageToAdmin(
   content: string,
 ) {
   if (!cfg.forward_phone) return
+  console.log(`[WA bot] reenviar mensaje de +${from} → ${cfg.forward_phone}`)
   const text = `📲 *Mensaje de +${from}:*\n\n${content}`
-  await sendTextMessage(cfg.phone_number_id, cfg.access_token, cfg.forward_phone, text)
-    .catch(err => console.error('[WA bot] error al reenviar mensaje al admin:', err))
+  const ok = await sendTextMessage(cfg.phone_number_id, cfg.access_token, cfg.forward_phone, text)
+  if (!ok) {
+    console.error(`[WA bot] fallo al reenviar al admin (${cfg.forward_phone}). Verifica que ese número haya enviado un mensaje al bot en las últimas 24h.`)
+  }
 }
 
 // ─── Punto de entrada principal ───────────────────────────────────────────────
