@@ -291,6 +291,7 @@ export default function WhatsAppBotPage() {
   const [config, setConfig]       = useState<BotConfig>(DEFAULT_CONFIG)
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
+  const [savingForwardPhone, setSavingForwardPhone] = useState(false)
   const [showToken, setShowToken] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
   const [uploadingWelcome, setUploadingWelcome] = useState(false)
@@ -422,6 +423,28 @@ export default function WhatsAppBotPage() {
       toast.error('Error inesperado')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // ── Save forward phone (independiente del form principal) ───────────────────
+  const handleSaveForwardPhone = async () => {
+    setSavingForwardPhone(true)
+    try {
+      const res = await fetch('/api/admin/whatsapp/forward-phone', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forward_phone: config.forward_phone.trim() || null }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(err.error ?? 'Error al guardar')
+        return
+      }
+      toast.success(config.forward_phone.trim() ? '¡Número de reenvío guardado!' : 'Reenvío desactivado')
+    } catch {
+      toast.error('Error inesperado')
+    } finally {
+      setSavingForwardPhone(false)
     }
   }
 
@@ -875,11 +898,18 @@ export default function WhatsAppBotPage() {
 
         {/* ── Reenvío de mensajes ── */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
-          <div>
-            <h2 className="font-semibold text-gray-900">Reenvío automático de mensajes</h2>
-            <p className="text-xs text-gray-500 mt-1">
-              Todos los mensajes que lleguen al bot se reenviarán automáticamente a este número de WhatsApp.
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-gray-900">Reenvío automático de mensajes</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Todos los mensajes que lleguen al bot se reenviarán automáticamente a este número de WhatsApp.
+              </p>
+            </div>
+            {config.forward_phone && (
+              <span className="shrink-0 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                ✅ Activo
+              </span>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -893,9 +923,18 @@ export default function WhatsAppBotPage() {
               className={inputClass}
             />
             <p className="text-xs text-gray-400 mt-1">
-              Ej: 527472733237 para México (+52 747 273 3237). Deja vacío para desactivar el reenvío.
+              México: <strong>52</strong> + número. Ej: <code className="bg-gray-100 px-1 rounded">527472733237</code> para +52 747 273 3237
             </p>
           </div>
+          <button
+            type="button"
+            onClick={handleSaveForwardPhone}
+            disabled={savingForwardPhone}
+            className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-xl transition-colors"
+          >
+            <Save className="w-4 h-4" />
+            {savingForwardPhone ? 'Guardando...' : 'Guardar número de reenvío'}
+          </button>
         </div>
 
         {/* ── Imagen de bienvenida ── */}
