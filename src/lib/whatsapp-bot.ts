@@ -59,6 +59,7 @@ export interface WaBotConfig {
   orders_ask_phone: string
   support_message: string
   no_orders_message: string
+  forward_phone?: string | null
 }
 
 type ConversationState =
@@ -71,6 +72,7 @@ type ConversationState =
 
 interface ConversationContext {
   checkout_name?: string
+  is_mandadito?: boolean
 }
 
 export interface IncomingMessage {
@@ -334,12 +336,14 @@ async function sendDefaultMenu(
     ? [
         { id: 'btn_restaurant', title: '🍽️ Ver menú',      description: 'Nuestros platillos' },
         { id: 'btn_promotions', title: '🎁 Promociones',    description: 'Ofertas especiales' },
+        { id: 'btn_mandaditos', title: '🛵 Mandaditos',     description: 'Pedir un mandadito' },
         { id: 'btn_orders',     title: '📦 Mis pedidos',    description: 'Consulta tu pedido' },
         { id: 'btn_support',    title: '💬 Con un operador',description: 'Hablar con alguien' },
       ]
     : [
         { id: 'btn_products',   title: '🛍️ Ver productos', description: 'Nuestro catálogo' },
         { id: 'btn_promotions', title: '🎁 Promociones',    description: 'Ofertas especiales' },
+        { id: 'btn_mandaditos', title: '🛵 Mandaditos',     description: 'Pedir un mandadito' },
         { id: 'btn_orders',     title: '📦 Mis pedidos',    description: 'Consulta tu pedido' },
         { id: 'btn_support',    title: '💬 Con un operador',description: 'Hablar con alguien' },
       ]
@@ -647,6 +651,20 @@ async function handleViewCart(
   return sendButtonMessage(cfg.phone_number_id, cfg.access_token, to, '¿Qué deseas hacer?', buttons)
 }
 
+// ─── Flujo: Mandaditos (pedir nombre y dirección sin carrito) ────────────────
+
+async function handleMandaditos(
+  cfg: WaBotConfig,
+  to: string,
+  tenantId: string,
+  db: ReturnType<typeof srvClient>,
+) {
+  const text = '🛵 ¿Cuál es tu *nombre completo* para el mandadito?'
+  await saveMessage(db, tenantId, to, 'outbound', text)
+  await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
+  return setConversationState(db, tenantId, to, 'collecting_name', { is_mandadito: true })
+}
+
 // ─── Flujo: Iniciar checkout (pedir nombre) ───────────────────────────────────
 
 async function handleBotCheckout(
@@ -679,12 +697,21 @@ async function handleCollectingName(
   tenantId: string,
   db: ReturnType<typeof srvClient>,
 ) {
-  const text =
-    `Perfecto, *${name}*. ¿Cuál es tu *dirección de entrega*?\n\n` +
-    `Puedes _escribir tu dirección_ o _compartir tu ubicación actual_ 📍 desde el ícono de adjuntar en WhatsApp.`
+  const prevCtx = await getConversationContext(db, tenantId, to)
+  const isMandadito = prevCtx.is_mandadito === true
+
+  const text = isMandadito
+    ? `Perfecto, *${name}*. ¿Cuál es tu *dirección para el mandadito*?\n\n` +
+      `Puedes _escribir tu dirección_ o _compartir tu ubicación actual_ 📍 desde el ícono de adjuntar en WhatsApp.`
+    : `Perfecto, *${name}*. ¿Cuál es tu *dirección de entrega*?\n\n` +
+      `Puedes _escribir tu dirección_ o _compartir tu ubicación actual_ 📍 desde el ícono de adjuntar en WhatsApp.`
+
   await saveMessage(db, tenantId, to, 'outbound', text)
   await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, text)
-  return setConversationState(db, tenantId, to, 'collecting_address', { checkout_name: name })
+  return setConversationState(db, tenantId, to, 'collecting_address', {
+    checkout_name: name,
+    ...(isMandadito ? { is_mandadito: true } : {}),
+  })
 }
 
 // ─── Flujo: Recibir dirección → crear pedido ──────────────────────────────────
@@ -698,6 +725,42 @@ async function handleCollectingAddress(
 ) {
   const context = await getConversationContext(db, tenantId, to)
   const customerName = context.checkout_name ?? 'Cliente'
+  const isMandadito = context.is_mandadito === true
+
+  // ── Flujo Mandadito: sin carrito ─────────────────────────────────────────────
+  if (isMandadito) {
+    await clearBotCart(db, tenantId, to)
+    await setConversationState(db, tenantId, to, 'idle', {})
+
+    const confirmText =
+      `✅ *¡Solicitud de mandadito recibida!*\n\n` +
+      `👤 ${customerName}\n` +
+      `📍 ${address}\n\n` +
+      `⏳ Pronto nos pondremos en contacto contigo para coordinar. ¡Gracias! 🙏`
+
+    await saveMessage(db, tenantId, to, 'outbound', confirmText)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, confirmText)
+
+    // Notificar al administrador
+    const { data: tenant } = await db
+      .from('tenants')
+      .select('whatsapp_phone, name')
+      .eq('id', tenantId)
+      .single()
+
+    const notifyPhone = cfg.forward_phone ?? tenant?.whatsapp_phone
+    if (notifyPhone) {
+      const ownerMsg =
+        `🛵 *MANDADITO — ${tenant?.name ?? 'Tu tienda'}*\n\n` +
+        `👤 Cliente: ${customerName}\n` +
+        `📱 WhatsApp: +${to}\n` +
+        `📍 Dirección: ${address}`
+      await sendTextMessage(cfg.phone_number_id, cfg.access_token, notifyPhone, ownerMsg)
+        .catch(err => console.error('[WA bot] error notificando mandadito al dueño:', err))
+    }
+
+    return sendPostActionMenu(cfg, to, db, tenantId)
+  }
 
   const cartItems = await getCartItems(db, tenantId, to)
   if (cartItems.length === 0) {
@@ -1107,6 +1170,19 @@ async function handleCustomFlow(
   return sendPostActionMenu(cfg, to, db, tenantId)
 }
 
+// ─── Reenvío de mensajes al número administrador ─────────────────────────────
+
+async function forwardMessageToAdmin(
+  cfg: WaBotConfig,
+  from: string,
+  content: string,
+) {
+  if (!cfg.forward_phone) return
+  const text = `📲 *Mensaje de +${from}:*\n\n${content}`
+  await sendTextMessage(cfg.phone_number_id, cfg.access_token, cfg.forward_phone, text)
+    .catch(err => console.error('[WA bot] error al reenviar mensaje al admin:', err))
+}
+
 // ─── Punto de entrada principal ───────────────────────────────────────────────
 
 export async function handleIncomingMessage(
@@ -1136,6 +1212,25 @@ export async function handleIncomingMessage(
   }
 
   await markAsRead(phoneNumberId, cfg.access_token, msg.messageId)
+
+  // ── Reenviar mensaje al número administrador (si está configurado) ──────────
+  {
+    let forwardContent: string
+    if (msg.type === 'text') {
+      forwardContent = msg.text ?? '[texto vacío]'
+    } else if (msg.type === 'interactive') {
+      forwardContent = `[Botón] ${msg.interactiveTitle ?? msg.interactiveId ?? 'interactivo'}`
+    } else if (msg.type === 'location') {
+      const parts: string[] = []
+      if (msg.locationName)    parts.push(msg.locationName)
+      if (msg.locationAddress) parts.push(msg.locationAddress)
+      if (msg.locationLatitude !== undefined) parts.push(`${msg.locationLatitude},${msg.locationLongitude}`)
+      forwardContent = `[Ubicación] ${parts.join(' — ')}`
+    } else {
+      forwardContent = '[mensaje de otro tipo]'
+    }
+    await forwardMessageToAdmin(cfg, msg.from, forwardContent)
+  }
 
   const flows = await loadTopLevelFlows(db, tenantId)
 
@@ -1225,6 +1320,7 @@ export async function handleIncomingMessage(
     }
 
     // ── Botones del sistema ──────────────────────────────────────────────────
+    if (id === 'btn_mandaditos') return handleMandaditos(cfg, msg.from, tenantId, db)
     if (id === 'btn_products') return handleProducts(cfg, msg.from, tenantId, db, flows)
 
     if (id === 'btn_orders') {

@@ -157,6 +157,7 @@ interface BotConfig {
   orders_ask_phone:      string
   support_message:       string
   no_orders_message:     string
+  forward_phone:         string
 }
 
 interface MetaTemplate {
@@ -211,6 +212,7 @@ const DEFAULT_CONFIG: BotConfig = {
   orders_ask_phone:  'Por favor, ingresa el número de teléfono que usaste al hacer tu pedido (solo los dígitos):',
   support_message:   '¡Gracias por contactarnos! 🙏 Un agente te atenderá en breve. Para una respuesta más rápida puedes escribirnos directamente.',
   no_orders_message: 'No encontramos pedidos con ese número. Verifica que sea el número correcto o intenta con otro.',
+  forward_phone:     '',
 }
 
 const STEP_TYPE_OPTIONS: { value: StepType; label: string; desc: string }[] = [
@@ -341,6 +343,7 @@ export default function WhatsAppBotPage() {
             support_message:      data.support_message      ?? DEFAULT_CONFIG.support_message,
             no_orders_message:    data.no_orders_message    ?? DEFAULT_CONFIG.no_orders_message,
             is_restaurant:        data.is_restaurant        ?? false,
+            forward_phone:        data.forward_phone        ?? '',
           })
         }
       })
@@ -867,6 +870,31 @@ export default function WhatsAppBotPage() {
               <ExternalLink className="w-3 h-3" />
               Guía oficial de Meta
             </a>
+          </div>
+        </div>
+
+        {/* ── Reenvío de mensajes ── */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+          <div>
+            <h2 className="font-semibold text-gray-900">Reenvío automático de mensajes</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Todos los mensajes que lleguen al bot se reenviarán automáticamente a este número de WhatsApp.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Número de reenvío <span className="text-gray-400 font-normal">(con código de país, sin +)</span>
+            </label>
+            <input
+              type="text"
+              value={config.forward_phone}
+              onChange={(e) => setConfig((c) => ({ ...c, forward_phone: e.target.value }))}
+              placeholder="527472733237"
+              className={inputClass}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Ej: 527472733237 para México (+52 747 273 3237). Deja vacío para desactivar el reenvío.
+            </p>
           </div>
         </div>
 

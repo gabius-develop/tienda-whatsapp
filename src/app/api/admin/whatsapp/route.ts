@@ -60,6 +60,7 @@ export async function PUT(request: NextRequest) {
     orders_ask_phone,
     support_message,
     no_orders_message,
+    forward_phone,
   } = body
 
   if (!phone_number_id || !verify_token) {
@@ -94,6 +95,7 @@ export async function PUT(request: NextRequest) {
       orders_ask_phone: orders_ask_phone ?? 'Por favor, ingresa el número de teléfono que usaste al hacer tu pedido:',
       support_message:  support_message  ?? '¡Gracias por contactarnos! Un agente te atenderá en breve. 🙏',
       no_orders_message:no_orders_message?? 'No encontramos pedidos con ese número. Verifica que sea el correcto.',
+      forward_phone:    forward_phone    || null,
       updated_at:       new Date().toISOString(),
     },
     { onConflict: 'tenant_id' },
