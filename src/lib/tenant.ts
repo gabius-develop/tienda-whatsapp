@@ -8,6 +8,8 @@ export interface Tenant {
   whatsapp_phone: string | null
   feature_live: boolean
   feature_competencia: boolean
+  feature_mandadito: boolean
+  feature_mercadopago: boolean
   is_active: boolean
   admin_email: string | null
   mercadopago_access_token: string | null

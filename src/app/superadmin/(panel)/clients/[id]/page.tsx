@@ -13,6 +13,8 @@ interface TenantForm {
   mercadopago_access_token: string
   feature_live: boolean
   feature_competencia: boolean
+  feature_mandadito: boolean
+  feature_mercadopago: boolean
   is_active: boolean
 }
 
@@ -32,6 +34,8 @@ export default function EditClientPage() {
     mercadopago_access_token: '',
     feature_live: false,
     feature_competencia: false,
+    feature_mandadito: false,
+    feature_mercadopago: false,
     is_active: true,
   })
 
@@ -48,6 +52,8 @@ export default function EditClientPage() {
         mercadopago_access_token: data.mercadopago_access_token ?? '',
         feature_live: data.feature_live,
         feature_competencia: data.feature_competencia,
+        feature_mandadito: data.feature_mandadito ?? false,
+        feature_mercadopago: data.feature_mercadopago ?? false,
         is_active: data.is_active,
       })
     } else {
@@ -268,6 +274,40 @@ export default function EditClientPage() {
             >
               <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
                 form.feature_competencia ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </div>
+          </label>
+
+          <label className="flex items-center justify-between cursor-pointer">
+            <div>
+              <p className="text-sm font-medium text-white">Mandaditos</p>
+              <p className="text-xs text-gray-500 mt-0.5">Botón de mandaditos en el bot de WhatsApp</p>
+            </div>
+            <div
+              onClick={() => handleChange('feature_mandadito', !form.feature_mandadito)}
+              className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                form.feature_mandadito ? 'bg-orange-500' : 'bg-gray-700'
+              }`}
+            >
+              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                form.feature_mandadito ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </div>
+          </label>
+
+          <label className="flex items-center justify-between cursor-pointer">
+            <div>
+              <p className="text-sm font-medium text-white">Pago con MercadoPago</p>
+              <p className="text-xs text-gray-500 mt-0.5">Permite pagar órdenes con MercadoPago</p>
+            </div>
+            <div
+              onClick={() => handleChange('feature_mercadopago', !form.feature_mercadopago)}
+              className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                form.feature_mercadopago ? 'bg-sky-500' : 'bg-gray-700'
+              }`}
+            >
+              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                form.feature_mercadopago ? 'translate-x-6' : 'translate-x-1'
               }`} />
             </div>
           </label>

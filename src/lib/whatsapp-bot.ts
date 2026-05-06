@@ -328,22 +328,25 @@ async function sendDefaultMenu(
   db: ReturnType<typeof srvClient>,
   tenantId: string,
   flows: FlowStep[] = [],
+  featureMandadito = false,
 ) {
   const menuHeader = cfg.menu_header || '¿En qué te puedo ayudar?'
 
-  // Opciones del sistema (siempre presentes)
+  const mandaditoRow = { id: 'btn_mandaditos', title: '🛵 Mandaditos', description: 'Pedir un mandadito' }
+
+  // Opciones del sistema
   const systemRows = cfg.is_restaurant
     ? [
         { id: 'btn_restaurant', title: '🍽️ Ver menú',      description: 'Nuestros platillos' },
         { id: 'btn_promotions', title: '🎁 Promociones',    description: 'Ofertas especiales' },
-        { id: 'btn_mandaditos', title: '🛵 Mandaditos',     description: 'Pedir un mandadito' },
+        ...(featureMandadito ? [mandaditoRow] : []),
         { id: 'btn_orders',     title: '📦 Mis pedidos',    description: 'Consulta tu pedido' },
         { id: 'btn_support',    title: '💬 Con un operador',description: 'Hablar con alguien' },
       ]
     : [
         { id: 'btn_products',   title: '🛍️ Ver productos', description: 'Nuestro catálogo' },
         { id: 'btn_promotions', title: '🎁 Promociones',    description: 'Ofertas especiales' },
-        { id: 'btn_mandaditos', title: '🛵 Mandaditos',     description: 'Pedir un mandadito' },
+        ...(featureMandadito ? [mandaditoRow] : []),
         { id: 'btn_orders',     title: '📦 Mis pedidos',    description: 'Consulta tu pedido' },
         { id: 'btn_support',    title: '💬 Con un operador',description: 'Hablar con alguien' },
       ]
@@ -383,6 +386,7 @@ async function sendWelcomeAndMenu(
   flows: FlowStep[],
   db: ReturnType<typeof srvClient>,
   tenantId: string,
+  featureMandadito = false,
 ) {
   const bodyText = cfg.welcome_message || cfg.menu_header || '¡Hola! ¿En qué te puedo ayudar?'
 
@@ -396,7 +400,7 @@ async function sendWelcomeAndMenu(
   }
 
   // Siempre mostrar el menú completo (con promociones)
-  return sendDefaultMenu(cfg, to, db, tenantId, flows)
+  return sendDefaultMenu(cfg, to, db, tenantId, flows, featureMandadito)
 }
 
 // ─── Menú post-acción ─────────────────────────────────────────────────────────
@@ -1196,7 +1200,7 @@ export async function handleIncomingMessage(
 
   const { data: cfgRow, error: cfgError } = await db
     .from('whatsapp_bot_config')
-    .select('*, tenants(id, slug)')
+    .select('*, tenants(id, slug, feature_mandadito)')
     .eq('phone_number_id', phoneNumberId)
     .eq('is_active', true)
     .single()
@@ -1207,8 +1211,9 @@ export async function handleIncomingMessage(
     return
   }
 
-  const cfg = cfgRow as WaBotConfig & { tenants: { id: string; slug: string } | null }
+  const cfg = cfgRow as WaBotConfig & { tenants: { id: string; slug: string; feature_mandadito: boolean } | null }
   const tenantId = cfg.tenants?.id
+  const featureMandadito = cfg.tenants?.feature_mandadito ?? false
   if (!tenantId) {
     console.log('[WA bot] no se encontró tenant para la config')
     return
@@ -1323,7 +1328,10 @@ export async function handleIncomingMessage(
     }
 
     // ── Botones del sistema ──────────────────────────────────────────────────
-    if (id === 'btn_mandaditos') return handleMandaditos(cfg, msg.from, tenantId, db)
+    if (id === 'btn_mandaditos') {
+      if (!featureMandadito) return sendPostActionMenu(cfg, msg.from, db, tenantId)
+      return handleMandaditos(cfg, msg.from, tenantId, db)
+    }
     if (id === 'btn_products') return handleProducts(cfg, msg.from, tenantId, db, flows)
 
     if (id === 'btn_orders') {
@@ -1339,7 +1347,7 @@ export async function handleIncomingMessage(
     }
 
     if (id === 'btn_main_menu') {
-      return sendWelcomeAndMenu(cfg, msg.from, flows, db, tenantId)
+      return sendWelcomeAndMenu(cfg, msg.from, flows, db, tenantId, featureMandadito)
     }
 
     if (id === 'btn_exit') {
@@ -1378,7 +1386,7 @@ export async function handleIncomingMessage(
       return
     }
 
-    return sendWelcomeAndMenu(cfg, msg.from, flows, db, tenantId)
+    return sendWelcomeAndMenu(cfg, msg.from, flows, db, tenantId, featureMandadito)
   }
 
   // ── Mensajes de ubicación ─────────────────────────────────────────────────

@@ -42,7 +42,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const body = await request.json()
-  const { name, whatsapp_phone, feature_live, feature_competencia, admin_email, is_active } = body
+  const { name, whatsapp_phone, feature_live, feature_competencia, feature_mandadito, feature_mercadopago, admin_email, is_active } = body
 
   const supabase = createServiceClient()
   const { data, error } = await supabase
@@ -52,6 +52,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       ...(whatsapp_phone !== undefined && { whatsapp_phone }),
       ...(feature_live !== undefined && { feature_live }),
       ...(feature_competencia !== undefined && { feature_competencia }),
+      ...(feature_mandadito !== undefined && { feature_mandadito }),
+      ...(feature_mercadopago !== undefined && { feature_mercadopago }),
       ...(admin_email !== undefined && { admin_email }),
       ...(is_active !== undefined && { is_active }),
       updated_at: new Date().toISOString(),

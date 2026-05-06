@@ -6,6 +6,13 @@ export async function POST(request: NextRequest) {
   const tenantSlug = getTenantSlugFromRequest(request)
   const tenant = await getTenantBySlug(tenantSlug)
 
+  if (!tenant?.feature_mercadopago) {
+    return NextResponse.json(
+      { error: 'El pago con MercadoPago no está habilitado para esta tienda' },
+      { status: 403 }
+    )
+  }
+
   // Token: primero el del tenant, luego el env var global como fallback
   const accessToken = tenant?.mercadopago_access_token ?? process.env.MERCADOPAGO_ACCESS_TOKEN
 
