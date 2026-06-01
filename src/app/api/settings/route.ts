@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
       whatsapp_phone: tenant?.whatsapp_phone ?? DEFAULT_SETTINGS.whatsapp_phone,
       feature_live: tenant?.feature_live ?? false,
       feature_competencia: tenant?.feature_competencia ?? false,
+      feature_mercadopago: tenant?.feature_mercadopago ?? false,
     }
 
     return NextResponse.json(merged)

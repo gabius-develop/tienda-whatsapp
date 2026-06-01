@@ -23,12 +23,16 @@ type CheckoutFormData = z.infer<typeof checkoutSchema>
 export default function CheckoutForm() {
   const [loading, setLoading] = useState<'whatsapp' | 'mercadopago' | null>(null)
   const [whatsappPhone, setWhatsappPhone] = useState<string | null>(null)
+  const [mercadopagoEnabled, setMercadopagoEnabled] = useState(false)
   const { items, totalPrice, clearCart } = useCartStore()
 
   useEffect(() => {
     fetch('/api/settings')
       .then((r) => r.json())
-      .then((s) => { setWhatsappPhone(s.whatsapp_phone || process.env.NEXT_PUBLIC_WHATSAPP_PHONE || '') })
+      .then((s) => {
+        setWhatsappPhone(s.whatsapp_phone || process.env.NEXT_PUBLIC_WHATSAPP_PHONE || '')
+        setMercadopagoEnabled(s.feature_mercadopago ?? false)
+      })
       .catch(() => { setWhatsappPhone(process.env.NEXT_PUBLIC_WHATSAPP_PHONE ?? '') })
   }, [])
 
@@ -186,23 +190,27 @@ export default function CheckoutForm() {
         </div>
 
         <div className="space-y-3">
-          <Button
-            type="button"
-            onClick={handleSubmit(handleMercadoPago)}
-            loading={loading === 'mercadopago'}
-            disabled={loading !== null}
-            size="lg"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
-          >
-            <CreditCard className="w-5 h-5" />
-            Pagar con MercadoPago
-          </Button>
+          {mercadopagoEnabled && (
+            <>
+              <Button
+                type="button"
+                onClick={handleSubmit(handleMercadoPago)}
+                loading={loading === 'mercadopago'}
+                disabled={loading !== null}
+                size="lg"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+              >
+                <CreditCard className="w-5 h-5" />
+                Pagar con MercadoPago
+              </Button>
 
-          <div className="flex items-center gap-3 text-xs text-gray-400">
-            <div className="flex-1 border-t border-gray-200" />
-            <span>o también</span>
-            <div className="flex-1 border-t border-gray-200" />
-          </div>
+              <div className="flex items-center gap-3 text-xs text-gray-400">
+                <div className="flex-1 border-t border-gray-200" />
+                <span>o también</span>
+                <div className="flex-1 border-t border-gray-200" />
+              </div>
+            </>
+          )}
 
           <Button
             type="button"
@@ -214,13 +222,15 @@ export default function CheckoutForm() {
             className="w-full rounded-xl"
           >
             <MessageCircle className="w-5 h-5" />
-            {whatsappPhone === null ? 'Cargando...' : 'Solo por WhatsApp'}
+            {whatsappPhone === null ? 'Cargando...' : mercadopagoEnabled ? 'Solo por WhatsApp' : 'Pagar en WhatsApp'}
           </Button>
         </div>
 
-        <p className="text-xs text-gray-500 mt-3 text-center">
-          MercadoPago acepta tarjetas y OXXO
-        </p>
+        {mercadopagoEnabled && (
+          <p className="text-xs text-gray-500 mt-3 text-center">
+            MercadoPago acepta tarjetas y OXXO
+          </p>
+        )}
       </div>
     </form>
     </>

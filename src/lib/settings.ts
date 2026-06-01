@@ -6,6 +6,7 @@ export interface StoreSettings {
   whatsapp_phone: string
   feature_live: boolean
   feature_competencia: boolean
+  feature_mercadopago: boolean
   primary_color: string
 }
 
@@ -17,6 +18,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   whatsapp_phone: process.env.NEXT_PUBLIC_WHATSAPP_PHONE ?? '',
   feature_live: false,
   feature_competencia: false,
+  feature_mercadopago: false,
   primary_color: '#16a34a',
 }
 
