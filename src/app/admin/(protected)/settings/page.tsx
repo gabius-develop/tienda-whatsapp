@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { KeyRound, Palette, Save } from 'lucide-react'
+import { KeyRound, MessageCircle, Palette, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 
@@ -29,11 +29,16 @@ export default function AdminSettingsPage() {
   const [primaryColor, setPrimaryColor] = useState('#16a34a')
   const [savingColor, setSavingColor] = useState(false)
 
+  // ── WhatsApp contacto ───────────────────────────────────────────────────
+  const [contactPhone, setContactPhone] = useState('')
+  const [savingPhone, setSavingPhone] = useState(false)
+
   useEffect(() => {
     fetch('/api/settings')
       .then((r) => r.json())
       .then((s) => {
         if (s.primary_color) setPrimaryColor(s.primary_color)
+        if (s.whatsapp_contact_phone) setContactPhone(s.whatsapp_contact_phone)
       })
       .catch(() => {})
   }, [])
@@ -79,6 +84,23 @@ export default function AdminSettingsPage() {
       toast.error('Error inesperado')
     } finally {
       setSavingColor(false)
+    }
+  }
+
+  const handleSaveContactPhone = async () => {
+    setSavingPhone(true)
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ whatsapp_contact_phone: contactPhone }),
+      })
+      if (!res.ok) { toast.error('Error al guardar el número'); return }
+      toast.success('Número de WhatsApp actualizado')
+    } catch {
+      toast.error('Error inesperado')
+    } finally {
+      setSavingPhone(false)
     }
   }
 
@@ -153,6 +175,40 @@ export default function AdminSettingsPage() {
         >
           <Save className="w-4 h-4" />
           {savingColor ? 'Guardando...' : 'Guardar color'}
+        </button>
+      </div>
+
+      {/* ── Número de WhatsApp de contacto ── */}
+      <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <MessageCircle className="w-5 h-5 text-green-500" />
+          <h2 className="font-semibold text-gray-900">Botón de WhatsApp</h2>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Configura el número de WhatsApp que aparecerá como botón flotante en tu tienda para que los clientes puedan contactarte directamente.
+        </p>
+
+        <div className="flex flex-col gap-1 mb-4">
+          <label className="text-sm font-medium text-gray-700">Número de WhatsApp</label>
+          <input
+            type="text"
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value.replace(/[^0-9+]/g, ''))}
+            placeholder="Ej: 59178901234"
+            className={inputClass}
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Incluye el código de país sin el signo +. Ejemplo: 59178901234
+          </p>
+        </div>
+
+        <button
+          onClick={handleSaveContactPhone}
+          disabled={savingPhone}
+          className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-xl transition-colors text-sm"
+        >
+          <Save className="w-4 h-4" />
+          {savingPhone ? 'Guardando...' : 'Guardar número'}
         </button>
       </div>
 

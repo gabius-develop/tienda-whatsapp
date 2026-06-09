@@ -4,6 +4,7 @@ export interface StoreSettings {
   welcome_subtitle: string
   footer_text: string
   whatsapp_phone: string
+  whatsapp_contact_phone: string
   feature_live: boolean
   feature_competencia: boolean
   feature_mercadopago: boolean
@@ -16,6 +17,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   welcome_subtitle: 'Los mejores productos al mejor precio. ¡Compra fácil por WhatsApp!',
   footer_text: 'Compra segura por WhatsApp Business',
   whatsapp_phone: process.env.NEXT_PUBLIC_WHATSAPP_PHONE ?? '',
+  whatsapp_contact_phone: '',
   feature_live: false,
   feature_competencia: false,
   feature_mercadopago: false,

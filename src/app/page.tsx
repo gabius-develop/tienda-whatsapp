@@ -10,6 +10,7 @@ import SearchBar from '@/components/store/SearchBar'
 import PromotionsBanner from '@/components/store/PromotionsBanner'
 import LiveBanner from '@/components/store/LiveBanner'
 import FloatingCart from '@/components/store/FloatingCart'
+import FloatingWhatsApp from '@/components/store/FloatingWhatsApp'
 import { StoreColorStyle } from '@/components/store/StoreColorStyle'
 import { Store } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -135,6 +136,7 @@ export default function StorePage() {
         <p>{settings.footer_text}</p>
       </footer>
 
+      <FloatingWhatsApp phone={settings.whatsapp_contact_phone} />
       <FloatingCart />
     </div>
   )
