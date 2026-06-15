@@ -44,44 +44,44 @@ export default function ProductCard({ product }: ProductCardProps) {
   const discountPercent = hasDiscount ? Math.round((1 - product.price / product.was_price!) * 100) : 0
 
   return (
-    <div className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-      {/* Imagen */}
-      <Link href={`/product/${product.id}`} className="relative block aspect-[3/4] sm:aspect-square bg-gray-50 overflow-hidden">
+    <div className="group bg-white rounded-2xl overflow-hidden border border-gray-100 flex flex-col transition-all duration-200 hover:shadow-lg hover:shadow-gray-200/60 hover:-translate-y-1 cursor-pointer">
+      {/* Imagen — aspect-square en todas las resoluciones */}
+      <Link href={`/product/${product.id}`} className="relative block aspect-square bg-gray-50 overflow-hidden">
         {product.image_url ? (
           <Image
             src={product.image_url}
             alt={product.name}
             fill
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-110"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
           />
         ) : (
           <div className="flex items-center justify-center h-full text-5xl">📦</div>
         )}
         {product.stock === 0 && (
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center">
-            <span className="text-white text-xs font-bold bg-black/60 px-3 py-1.5 rounded-full">Agotado</span>
+          <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px] flex items-center justify-center">
+            <span className="text-white text-xs font-bold bg-black/60 px-4 py-1.5 rounded-full">Agotado</span>
           </div>
         )}
         {hasDiscount && (
           <div className="absolute top-2 right-2">
-            <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">
+            <span className="bg-red-500 text-white text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">
               -{discountPercent}%
             </span>
           </div>
         )}
         {product.category && (
           <div className="absolute top-2 left-2">
-            <Badge variant="info" className="text-[10px] px-2 py-0.5 shadow-sm">{product.category}</Badge>
+            <Badge variant="info" className="text-[10px] px-2 py-0.5 shadow-sm backdrop-blur-sm">{product.category}</Badge>
           </div>
         )}
       </Link>
 
       {/* Info */}
       <div className="p-2.5 sm:p-3 flex flex-col flex-1">
-        <p className="text-xs font-semibold text-gray-800 line-clamp-2 mb-1.5 leading-snug">{product.name}</p>
+        <p className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 mb-1.5 leading-snug">{product.name}</p>
 
-        <div className="flex items-baseline gap-1.5 flex-wrap mb-2.5">
+        <div className="flex items-baseline gap-1.5 flex-wrap mb-3">
           <span className="text-sm sm:text-base font-bold sp-text">{formatCurrency(product.price)}</span>
           {hasDiscount && (
             <span className="text-[11px] text-gray-400 line-through">{formatCurrency(product.was_price!)}</span>
@@ -107,7 +107,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
           <button
             onClick={handleShare}
-            className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300 active:scale-95 transition-all"
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300 hover:bg-gray-50 active:scale-95 transition-all"
             title="Compartir"
           >
             <Share2 className="w-3.5 h-3.5" />
