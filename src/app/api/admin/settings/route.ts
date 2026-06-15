@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getTenantBySlug, getTenantSlugFromRequest } from '@/lib/tenant'
 import { revalidateTag } from 'next/cache'
 
-const ALLOWED_KEYS = ['primary_color', 'store_name', 'welcome_title', 'welcome_subtitle', 'footer_text', 'whatsapp_contact_phone']
+const ALLOWED_KEYS = ['primary_color', 'store_name', 'logo_url', 'welcome_title', 'welcome_subtitle', 'footer_text', 'whatsapp_contact_phone']
 
 export async function PUT(request: NextRequest) {
   const supabase = await createClient()

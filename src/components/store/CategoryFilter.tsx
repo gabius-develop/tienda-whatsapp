@@ -14,10 +14,10 @@ export default function CategoryFilter({ categories, selected, onSelect }: Categ
       <button
         onClick={() => onSelect(null)}
         className={cn(
-          'px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap shrink-0',
+          'px-4 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0',
           selected === null
-            ? 'sp-btn'
-            : 'bg-white text-gray-700 border border-gray-200 active:bg-gray-100'
+            ? 'sp-btn shadow-sm'
+            : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:shadow-sm active:scale-95'
         )}
       >
         Todos
@@ -27,10 +27,10 @@ export default function CategoryFilter({ categories, selected, onSelect }: Categ
           key={category}
           onClick={() => onSelect(category)}
           className={cn(
-            'px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap shrink-0',
+            'px-4 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0',
             selected === category
-              ? 'sp-btn'
-              : 'bg-white text-gray-700 border border-gray-200 active:bg-gray-100'
+              ? 'sp-btn shadow-sm'
+              : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:shadow-sm active:scale-95'
           )}
         >
           {category}

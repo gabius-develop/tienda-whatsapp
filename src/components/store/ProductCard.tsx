@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { ShoppingCart, Eye, Share2, Check } from 'lucide-react'
+import { ShoppingCart, Share2, Check } from 'lucide-react'
 import { Product } from '@/types'
 import { useCartStore } from '@/store/cartStore'
 import { formatCurrency } from '@/lib/utils'
@@ -40,48 +40,51 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
   }
 
+  const hasDiscount = product.was_price && product.was_price > product.price
+  const discountPercent = hasDiscount ? Math.round((1 - product.price / product.was_price!) * 100) : 0
+
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col">
-      {/* Imagen — más alta en móvil para llenar la tarjeta */}
-      <Link href={`/product/${product.id}`} className="relative block aspect-[3/4] sm:aspect-square bg-gray-50">
+    <div className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+      {/* Imagen */}
+      <Link href={`/product/${product.id}`} className="relative block aspect-[3/4] sm:aspect-square bg-gray-50 overflow-hidden">
         {product.image_url ? (
           <Image
             src={product.image_url}
             alt={product.name}
             fill
-            className="object-cover"
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
         ) : (
           <div className="flex items-center justify-center h-full text-5xl">📦</div>
         )}
         {product.stock === 0 && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <span className="text-white text-xs font-bold bg-black/60 px-3 py-1 rounded-full">Agotado</span>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center">
+            <span className="text-white text-xs font-bold bg-black/60 px-3 py-1.5 rounded-full">Agotado</span>
           </div>
         )}
-        {product.was_price && product.was_price > product.price && (
+        {hasDiscount && (
           <div className="absolute top-2 right-2">
-            <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-              -{Math.round((1 - product.price / product.was_price) * 100)}%
+            <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">
+              -{discountPercent}%
             </span>
           </div>
         )}
         {product.category && (
           <div className="absolute top-2 left-2">
-            <Badge variant="info" className="text-[10px] px-2 py-0.5">{product.category}</Badge>
+            <Badge variant="info" className="text-[10px] px-2 py-0.5 shadow-sm">{product.category}</Badge>
           </div>
         )}
       </Link>
 
       {/* Info */}
       <div className="p-2.5 sm:p-3 flex flex-col flex-1">
-        <p className="text-xs font-semibold text-gray-800 line-clamp-2 mb-1 leading-snug">{product.name}</p>
+        <p className="text-xs font-semibold text-gray-800 line-clamp-2 mb-1.5 leading-snug">{product.name}</p>
 
-        <div className="flex items-baseline gap-1 flex-wrap mb-2">
+        <div className="flex items-baseline gap-1.5 flex-wrap mb-2.5">
           <span className="text-sm sm:text-base font-bold sp-text">{formatCurrency(product.price)}</span>
-          {product.was_price && product.was_price > product.price && (
-            <span className="text-xs text-gray-400 line-through">{formatCurrency(product.was_price)}</span>
+          {hasDiscount && (
+            <span className="text-[11px] text-gray-400 line-through">{formatCurrency(product.was_price!)}</span>
           )}
         </div>
 
@@ -90,7 +93,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           <button
             onClick={handleAddToCart}
             disabled={product.stock === 0}
-            className={`flex-1 flex items-center justify-center gap-1 rounded-xl py-2.5 text-xs font-bold transition-all duration-150
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition-all duration-200
               ${added
                 ? 'sp-btn scale-95'
                 : product.stock === 0
@@ -104,7 +107,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
           <button
             onClick={handleShare}
-            className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 active:bg-gray-100 active:scale-95 transition-all"
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300 active:scale-95 transition-all"
             title="Compartir"
           >
             <Share2 className="w-3.5 h-3.5" />
