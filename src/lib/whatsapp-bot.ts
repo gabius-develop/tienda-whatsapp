@@ -32,6 +32,8 @@ export async function saveMessage(
   direction: 'inbound' | 'outbound',
   content: string,
   waMessageId?: string,
+  mediaUrl?: string,
+  mediaType?: string,
 ) {
   const { error } = await db.from('whatsapp_messages').insert({
     tenant_id: tenantId,
@@ -39,6 +41,8 @@ export async function saveMessage(
     direction,
     content,
     ...(waMessageId ? { wa_message_id: waMessageId } : {}),
+    ...(mediaUrl ? { media_url: mediaUrl } : {}),
+    ...(mediaType ? { media_type: mediaType } : {}),
   })
   if (error) console.error('[WA bot] saveMessage error:', error.message, '| tenant:', tenantId)
 }
@@ -78,7 +82,7 @@ interface ConversationContext {
 export interface IncomingMessage {
   messageId: string
   from: string
-  type: 'text' | 'interactive' | 'location' | 'other'
+  type: 'text' | 'interactive' | 'location' | 'image' | 'other'
   text?: string
   interactiveId?: string
   interactiveTitle?: string
@@ -86,6 +90,9 @@ export interface IncomingMessage {
   locationLongitude?: number
   locationName?:      string
   locationAddress?:   string
+  imageId?:           string
+  imageMimeType?:     string
+  imageCaption?:      string
 }
 
 interface FlowStep {

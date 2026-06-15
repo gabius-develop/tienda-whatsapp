@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { handleIncomingMessage, saveMessage, IncomingMessage } from '@/lib/whatsapp-bot'
+import { getMediaUrl, downloadMedia } from '@/lib/whatsapp-cloud'
 
 function srvClient() {
   return createSupabaseClient(
@@ -103,6 +104,12 @@ export async function POST(request: NextRequest) {
               incoming.interactiveId    = lr?.id
               incoming.interactiveTitle = lr?.title
             }
+          } else if (m.type === 'image') {
+            const img = m.image as Record<string, unknown>
+            incoming.type          = 'image'
+            incoming.imageId       = img?.id as string
+            incoming.imageMimeType = img?.mime_type as string
+            incoming.imageCaption  = img?.caption as string | undefined
           } else if (m.type === 'location') {
             const loc = m.location as Record<string, unknown>
             incoming.type             = 'location'
@@ -113,16 +120,53 @@ export async function POST(request: NextRequest) {
           }
 
           // Guardar mensaje entrante en historial
-          if (incoming.type === 'text' && incoming.text) {
+          {
             const db = srvClient()
             const { data: cfg } = await db
               .from('whatsapp_bot_config')
-              .select('tenant_id')
+              .select('tenant_id, access_token')
               .eq('phone_number_id', phoneNumberId)
               .eq('is_active', true)
               .single()
+
             if (cfg?.tenant_id) {
-              await saveMessage(db, cfg.tenant_id, incoming.from, 'inbound', incoming.text, incoming.messageId)
+              if (incoming.type === 'text' && incoming.text) {
+                await saveMessage(db, cfg.tenant_id, incoming.from, 'inbound', incoming.text, incoming.messageId)
+              } else if (incoming.type === 'interactive' && incoming.interactiveTitle) {
+                await saveMessage(db, cfg.tenant_id, incoming.from, 'inbound', incoming.interactiveTitle, incoming.messageId)
+              } else if (incoming.type === 'image' && incoming.imageId) {
+                // Descargar imagen de Meta y subir a Supabase storage
+                let publicUrl: string | null = null
+                try {
+                  const mediaUrl = await getMediaUrl(incoming.imageId, cfg.access_token)
+                  if (mediaUrl) {
+                    const media = await downloadMedia(mediaUrl, cfg.access_token)
+                    if (media) {
+                      const ext = incoming.imageMimeType?.split('/')[1] ?? 'jpg'
+                      const fileName = `wa-media/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+                      const { error: uploadErr } = await db.storage
+                        .from('product-images')
+                        .upload(fileName, new Uint8Array(media.buffer), {
+                          contentType: media.contentType,
+                          upsert: false,
+                        })
+                      if (!uploadErr) {
+                        const { data: urlData } = db.storage.from('product-images').getPublicUrl(fileName)
+                        publicUrl = urlData.publicUrl
+                      } else {
+                        console.error('[WA webhook] upload error:', uploadErr.message)
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error('[WA webhook] image processing error:', err)
+                }
+                const caption = incoming.imageCaption || '📷 Imagen'
+                await saveMessage(db, cfg.tenant_id, incoming.from, 'inbound', caption, incoming.messageId, publicUrl ?? undefined, 'image')
+              } else if (incoming.type === 'location') {
+                const locText = `📍 ${incoming.locationName || 'Ubicación'}: ${incoming.locationLatitude}, ${incoming.locationLongitude}`
+                await saveMessage(db, cfg.tenant_id, incoming.from, 'inbound', locText, incoming.messageId)
+              }
             }
           }
 

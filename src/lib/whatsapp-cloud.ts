@@ -185,6 +185,55 @@ export function sendImageMessage(
   })
 }
 
+/**
+ * Obtiene la URL temporal de descarga de un archivo multimedia de Meta.
+ * Se usa para descargar imágenes, audio, video, documentos enviados por el usuario.
+ */
+export async function getMediaUrl(
+  mediaId: string,
+  accessToken: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${WA_BASE}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) {
+      console.error('[WA Cloud API] getMediaUrl error:', res.status, await res.text())
+      return null
+    }
+    const data = await res.json() as { url?: string }
+    return data.url ?? null
+  } catch (err) {
+    console.error('[WA Cloud API] getMediaUrl fetch error:', err)
+    return null
+  }
+}
+
+/**
+ * Descarga un archivo multimedia desde la URL temporal de Meta.
+ * Retorna el buffer y el content-type.
+ */
+export async function downloadMedia(
+  url: string,
+  accessToken: string,
+): Promise<{ buffer: ArrayBuffer; contentType: string } | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) {
+      console.error('[WA Cloud API] downloadMedia error:', res.status)
+      return null
+    }
+    const contentType = res.headers.get('content-type') ?? 'application/octet-stream'
+    const buffer = await res.arrayBuffer()
+    return { buffer, contentType }
+  } catch (err) {
+    console.error('[WA Cloud API] downloadMedia fetch error:', err)
+    return null
+  }
+}
+
 /** Marca un mensaje como leído (muestra las palomitas azules) */
 export function markAsRead(
   phoneNumberId: string,

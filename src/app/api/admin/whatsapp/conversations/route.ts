@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getTenantBySlug, getTenantSlugFromRequest } from '@/lib/tenant'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { sendTextMessage } from '@/lib/whatsapp-cloud'
+import { sendTextMessage, sendImageMessage } from '@/lib/whatsapp-cloud'
 import { saveMessage } from '@/lib/whatsapp-bot'
 
 function srvClient() {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const [{ data: rawMessages, error }, { data: conv }] = await Promise.all([
       db
         .from('whatsapp_messages')
-        .select('id, direction, content, created_at')
+        .select('id, direction, content, media_url, media_type, created_at')
         .eq('tenant_id', tenant.id)
         .eq('customer_phone', phone)
         .order('created_at', { ascending: false }) // más recientes primero
@@ -122,9 +122,9 @@ export async function POST(request: NextRequest) {
   const tenant = await getTenantBySlug(tenantSlug)
   if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
 
-  const { to, message } = await request.json()
-  if (!to || !message?.trim()) {
-    return NextResponse.json({ error: 'to y message son requeridos' }, { status: 400 })
+  const { to, message, imageUrl } = await request.json()
+  if (!to || (!message?.trim() && !imageUrl)) {
+    return NextResponse.json({ error: 'to y (message o imageUrl) son requeridos' }, { status: 400 })
   }
 
   const db = srvClient()
@@ -139,12 +139,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'El bot no está activo o no está configurado' }, { status: 400 })
   }
 
-  const ok = await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, message.trim())
-  if (!ok) {
-    return NextResponse.json({ error: 'Error al enviar el mensaje por WhatsApp' }, { status: 500 })
+  if (imageUrl) {
+    // Enviar imagen con caption opcional
+    const caption = message?.trim() || undefined
+    const ok = await sendImageMessage(cfg.phone_number_id, cfg.access_token, to, imageUrl, caption)
+    if (!ok) {
+      return NextResponse.json({ error: 'Error al enviar la imagen por WhatsApp' }, { status: 500 })
+    }
+    await saveMessage(db, tenant.id, to, 'outbound', caption || '📷 Imagen', undefined, imageUrl, 'image')
+  } else {
+    const ok = await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, message.trim())
+    if (!ok) {
+      return NextResponse.json({ error: 'Error al enviar el mensaje por WhatsApp' }, { status: 500 })
+    }
+    await saveMessage(db, tenant.id, to, 'outbound', message.trim())
   }
-
-  await saveMessage(db, tenant.id, to, 'outbound', message.trim())
 
   return NextResponse.json({ success: true })
 }

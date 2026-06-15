@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MessageSquare, Phone, RefreshCw, Bot, User, Send, ArrowLeft, BotOff, CirclePlay } from 'lucide-react'
+import { MessageSquare, Phone, RefreshCw, Bot, User, Send, ArrowLeft, BotOff, CirclePlay, Smile, ImagePlus, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Conversation {
@@ -18,6 +18,8 @@ interface Message {
   id: string
   direction: 'inbound' | 'outbound'
   content: string
+  media_url?: string | null
+  media_type?: string | null
   created_at: string
 }
 
@@ -41,6 +43,60 @@ function isUnread(conv: Conversation): boolean {
   } catch { return false }
 }
 
+// ─── Emoji picker ─────────────────────────────────────────────────────────────
+
+const EMOJIS = [
+  '👋','😊','😃','😍','🤩','😎','😋','🤗','😇','🙂',
+  '😉','🥳','💪','👍','👏','🙏','🤝','❤️','🔥','⭐',
+  '✅','❌','⚠️','💯','🎉','🎊','💡','✨','💫','🌟',
+  '📦','🛍️','💰','💳','🛒','🏷️','🎁','📋','📝','📣',
+  '📱','💻','📞','💬','🔔','📍','🗓️','⏰','🚀','🔑',
+  '🏪','🏠','🚚','📮','💌','🔖','📌','🔍','🆕','🆓',
+]
+
+function EmojiPicker({ onSelect }: { onSelect: (e: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-yellow-500 transition-colors rounded-xl hover:bg-gray-100 shrink-0"
+        title="Insertar emoji"
+      >
+        <Smile className="w-5 h-5" />
+      </button>
+      {open && (
+        <div className="absolute bottom-12 left-0 z-30 bg-white border border-gray-200 rounded-xl shadow-xl p-2 w-64">
+          <div className="grid grid-cols-10 gap-0.5 max-h-40 overflow-y-auto">
+            {EMOJIS.map(e => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => { onSelect(e); setOpen(false) }}
+                className="text-lg p-0.5 rounded hover:bg-gray-100 transition-colors leading-tight"
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ConversationsPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
@@ -52,6 +108,10 @@ export default function ConversationsPage() {
   const [replyText, setReplyText] = useState('')
   const [sending, setSending] = useState(false)
   const [togglingState, setTogglingState] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -155,14 +215,33 @@ export default function ConversationsPage() {
   }
 
   const handleSend = async () => {
-    if (!selectedPhone || !replyText.trim() || sending) return
+    if (!selectedPhone || sending) return
+    if (!replyText.trim() && !imageFile) return
     setSending(true)
     wasAtBottomRef.current = true
     try {
+      // Si hay imagen, primero subirla
+      let imageUrl: string | undefined
+      if (imageFile) {
+        const formData = new FormData()
+        formData.append('file', imageFile)
+        const uploadRes = await fetch('/api/admin/upload?folder=wa-media', { method: 'POST', body: formData })
+        if (!uploadRes.ok) {
+          toast.error('Error al subir la imagen')
+          return
+        }
+        const uploadData = await uploadRes.json()
+        imageUrl = uploadData.url
+      }
+
       const res = await fetch('/api/admin/whatsapp/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: selectedPhone, message: replyText.trim() }),
+        body: JSON.stringify({
+          to: selectedPhone,
+          message: replyText.trim() || undefined,
+          imageUrl,
+        }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -170,6 +249,8 @@ export default function ConversationsPage() {
         return
       }
       setReplyText('')
+      setImageFile(null)
+      setImagePreview(null)
       markAsRead(selectedPhone)
       await fetchMessages(selectedPhone)
       fetchConversations(true)
@@ -179,6 +260,39 @@ export default function ConversationsPage() {
       setSending(false)
     }
   }
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Solo se permiten imágenes')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La imagen no puede superar 5 MB')
+      return
+    }
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
+  }
+
+  const clearImage = () => {
+    setImageFile(null)
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setImagePreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const insertEmoji = useCallback((emoji: string) => {
+    const el = textareaRef.current
+    const start = el ? el.selectionStart : replyText.length
+    const end = el ? el.selectionEnd : replyText.length
+    const next = replyText.slice(0, start) + emoji + replyText.slice(end)
+    setReplyText(next)
+    requestAnimationFrame(() => {
+      if (el) { el.focus(); el.selectionStart = el.selectionEnd = start + emoji.length }
+    })
+  }, [replyText])
 
   const handleToggleState = async () => {
     if (!selectedPhone || togglingState) return
@@ -425,18 +539,30 @@ export default function ConversationsPage() {
                       </div>
                     )}
                     <div
-                      className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm shadow-sm ${
+                      className={`max-w-[75%] rounded-2xl text-sm shadow-sm overflow-hidden ${
                         msg.direction === 'outbound'
                           ? 'bg-green-600 text-white rounded-br-sm'
                           : 'bg-white text-gray-900 rounded-bl-sm'
                       }`}
                     >
-                      <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                      <p className={`text-[10px] mt-0.5 ${msg.direction === 'outbound' ? 'text-green-200' : 'text-gray-400'}`}>
-                        {new Date(msg.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                        {' · '}
-                        {new Date(msg.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
-                      </p>
+                      {msg.media_url && msg.media_type === 'image' && (
+                        <a href={msg.media_url} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={msg.media_url}
+                            alt="Imagen"
+                            className="w-full max-w-xs rounded-t-2xl object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            loading="lazy"
+                          />
+                        </a>
+                      )}
+                      <div className="px-3.5 py-2.5">
+                        <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                        <p className={`text-[10px] mt-0.5 ${msg.direction === 'outbound' ? 'text-green-200' : 'text-gray-400'}`}>
+                          {new Date(msg.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                          {' · '}
+                          {new Date(msg.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+                        </p>
+                      </div>
                     </div>
                     {msg.direction === 'outbound' && (
                       <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center shrink-0 mb-1">
@@ -449,9 +575,43 @@ export default function ConversationsPage() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Preview de imagen seleccionada */}
+            {imagePreview && (
+              <div className="px-3 pt-2 bg-white border-t border-gray-100">
+                <div className="relative inline-block">
+                  <img src={imagePreview} alt="Preview" className="h-20 rounded-lg object-cover border border-gray-200" />
+                  <button
+                    onClick={clearImage}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Input */}
-            <div className="p-3 bg-white border-t border-gray-200 flex items-end gap-2">
+            <div className="p-3 bg-white border-t border-gray-200 flex items-end gap-1.5">
+              <EmojiPicker onSelect={insertEmoji} />
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageSelect}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-green-600 transition-colors rounded-xl hover:bg-gray-100 shrink-0"
+                title="Enviar imagen"
+              >
+                <ImagePlus className="w-5 h-5" />
+              </button>
+
               <textarea
+                ref={textareaRef}
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 onKeyDown={(e) => {
@@ -467,7 +627,7 @@ export default function ConversationsPage() {
               />
               <button
                 onClick={handleSend}
-                disabled={sending || !replyText.trim()}
+                disabled={sending || (!replyText.trim() && !imageFile)}
                 className="flex items-center justify-center w-10 h-10 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white rounded-xl transition-colors shrink-0"
               >
                 {sending

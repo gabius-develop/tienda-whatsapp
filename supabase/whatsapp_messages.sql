@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
   direction      TEXT        NOT NULL CHECK (direction IN ('inbound', 'outbound')),
   content        TEXT        NOT NULL,
   wa_message_id  TEXT,
+  media_url      TEXT,
+  media_type     TEXT,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
