@@ -40,7 +40,8 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
   }
 
-  const hasDiscount = product.was_price && product.was_price > product.price
+  const isNegotiable = product.price_type === 'negotiable'
+  const hasDiscount = !isNegotiable && product.was_price && product.was_price > product.price
   const discountPercent = hasDiscount ? Math.round((1 - product.price / product.was_price!) * 100) : 0
 
   return (
@@ -82,9 +83,15 @@ export default function ProductCard({ product }: ProductCardProps) {
         <p className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 mb-1.5 leading-snug">{product.name}</p>
 
         <div className="flex items-baseline gap-1.5 flex-wrap mb-3">
-          <span className="text-sm sm:text-base font-bold sp-text">{formatCurrency(product.price)}</span>
-          {hasDiscount && (
-            <span className="text-[11px] text-gray-400 line-through">{formatCurrency(product.was_price!)}</span>
+          {isNegotiable ? (
+            <span className="text-sm sm:text-base font-bold text-amber-600">A convenir</span>
+          ) : (
+            <>
+              <span className="text-sm sm:text-base font-bold sp-text">{formatCurrency(product.price)}</span>
+              {hasDiscount && (
+                <span className="text-[11px] text-gray-400 line-through">{formatCurrency(product.was_price!)}</span>
+              )}
+            </>
           )}
         </div>
 

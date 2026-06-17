@@ -173,13 +173,19 @@ export default function ProductPage() {
                 )}
                 <h1 className="text-2xl font-bold text-gray-900 mb-3">{product.name}</h1>
                 <div className="flex items-baseline gap-3 flex-wrap mb-4">
-                  <p className="text-3xl font-bold text-green-600">{formatCurrency(product.price)}</p>
-                  {product.was_price && product.was_price > product.price && (
+                  {product.price_type === 'negotiable' ? (
+                    <p className="text-3xl font-bold text-amber-600">A convenir</p>
+                  ) : (
                     <>
-                      <p className="text-xl text-gray-400 line-through">{formatCurrency(product.was_price)}</p>
-                      <span className="text-sm font-bold text-white bg-red-500 px-2 py-0.5 rounded-full">
-                        -{Math.round((1 - product.price / product.was_price) * 100)}% OFF
-                      </span>
+                      <p className="text-3xl font-bold text-green-600">{formatCurrency(product.price)}</p>
+                      {product.was_price && product.was_price > product.price && (
+                        <>
+                          <p className="text-xl text-gray-400 line-through">{formatCurrency(product.was_price)}</p>
+                          <span className="text-sm font-bold text-white bg-red-500 px-2 py-0.5 rounded-full">
+                            -{Math.round((1 - product.price / product.was_price) * 100)}% OFF
+                          </span>
+                        </>
+                      )}
                     </>
                   )}
                 </div>

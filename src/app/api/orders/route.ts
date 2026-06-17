@@ -32,13 +32,14 @@ export async function POST(request: NextRequest) {
     quantity: number
     unit_price: number
     subtotal: number
+    price_type: string
   }[] = []
 
   for (const item of items as ClientItem[]) {
     if (!item.product_id) continue
     const { data: product } = await supabase
       .from('products')
-      .select('id, name, price, stock')
+      .select('id, name, price, price_type, stock')
       .eq('id', item.product_id)
       .eq('tenant_id', tenant.id)
       .single()
@@ -56,12 +57,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const isNegotiable = product.price_type === 'negotiable'
     verifiedItems.push({
       product_id: product.id,
       product_name: product.name,
       quantity: item.quantity,
-      unit_price: product.price,         // precio real de la BD, no del cliente
-      subtotal: product.price * item.quantity,
+      unit_price: isNegotiable ? 0 : product.price,
+      subtotal: isNegotiable ? 0 : product.price * item.quantity,
+      price_type: product.price_type ?? 'fixed',
     })
   }
 

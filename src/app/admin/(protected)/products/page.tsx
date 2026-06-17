@@ -125,7 +125,11 @@ export default function ProductsPage() {
                     )}
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-sm font-semibold text-green-600">{formatCurrency(product.price)}</span>
+                    {product.price_type === 'negotiable' ? (
+                      <span className="text-sm font-semibold text-amber-600">A convenir</span>
+                    ) : (
+                      <span className="text-sm font-semibold text-green-600">{formatCurrency(product.price)}</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 hidden sm:table-cell">
                     <span className={`text-sm font-medium ${product.stock === 0 ? 'text-red-500' : 'text-gray-700'}`}>

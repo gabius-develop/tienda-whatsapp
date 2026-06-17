@@ -24,7 +24,7 @@ export default function CheckoutForm() {
   const [loading, setLoading] = useState<'whatsapp' | 'mercadopago' | null>(null)
   const [whatsappPhone, setWhatsappPhone] = useState<string | null>(null)
   const [mercadopagoEnabled, setMercadopagoEnabled] = useState(false)
-  const { items, totalPrice, clearCart } = useCartStore()
+  const { items, totalPrice, clearCart, hasNegotiableItems } = useCartStore()
 
   useEffect(() => {
     fetch('/api/settings')
@@ -184,10 +184,15 @@ export default function CheckoutForm() {
       </div>
 
       <div className="bg-green-50 rounded-2xl p-6 border border-green-100">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-2">
           <span className="text-gray-600">Total a pagar</span>
           <span className="text-2xl font-bold text-green-700">{formatCurrency(totalPrice())}</span>
         </div>
+        {hasNegotiableItems() && (
+          <p className="text-sm text-amber-600 mb-3">
+            * Algunos productos tienen precio a convenir. El total final se acordará por WhatsApp.
+          </p>
+        )}
 
         <div className="space-y-3">
           {mercadopagoEnabled && (

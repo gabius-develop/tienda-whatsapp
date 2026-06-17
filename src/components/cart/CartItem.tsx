@@ -31,8 +31,12 @@ export default function CartItem({ item }: CartItemProps) {
 
       <div className="flex-1 min-w-0">
         <h3 className="font-medium text-gray-900 truncate">{item.product.name}</h3>
-        <p className="text-sm text-green-600 font-semibold mt-0.5">
-          {formatCurrency(item.product.price)}
+        <p className="text-sm font-semibold mt-0.5">
+          {item.product.price_type === 'negotiable' ? (
+            <span className="text-amber-600">A convenir</span>
+          ) : (
+            <span className="text-green-600">{formatCurrency(item.product.price)}</span>
+          )}
         </p>
 
         <div className="flex items-center justify-between mt-2">
@@ -54,7 +58,11 @@ export default function CartItem({ item }: CartItemProps) {
 
           <div className="flex items-center gap-3">
             <span className="font-semibold text-gray-900">
-              {formatCurrency(item.product.price * item.quantity)}
+              {item.product.price_type === 'negotiable' ? (
+                <span className="text-amber-600 text-sm">A convenir</span>
+              ) : (
+                formatCurrency(item.product.price * item.quantity)
+              )}
             </span>
             <button
               onClick={() => removeItem(item.product.id)}

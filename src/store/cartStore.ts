@@ -10,6 +10,7 @@ interface CartStore {
   clearCart: () => void
   totalItems: () => number
   totalPrice: () => number
+  hasNegotiableItems: () => boolean
 }
 
 export const useCartStore = create<CartStore>()(
@@ -55,7 +56,11 @@ export const useCartStore = create<CartStore>()(
       totalItems: () => get().items.reduce((sum, item) => sum + item.quantity, 0),
 
       totalPrice: () =>
-        get().items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
+        get().items.reduce((sum, item) =>
+          item.product.price_type === 'negotiable' ? sum : sum + item.product.price * item.quantity, 0),
+
+      hasNegotiableItems: () =>
+        get().items.some((item) => item.product.price_type === 'negotiable'),
     }),
     {
       name: 'shopping-cart',

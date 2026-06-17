@@ -5,6 +5,7 @@ export interface VerifiedOrderItem {
   quantity: number
   unit_price: number
   subtotal: number
+  price_type?: string
 }
 
 interface OrderData {
@@ -19,8 +20,14 @@ interface OrderData {
 export function buildWhatsAppMessage(data: OrderData): string {
   const { customerName, customerPhone, customerAddress, verifiedItems, verifiedTotal, paymentUrl } = data
 
+  const hasNegotiable = verifiedItems.some((item) => item.price_type === 'negotiable')
+
   const itemsList = verifiedItems
-    .map((item) => `• ${item.product_name} x${item.quantity} = ${formatCurrency(item.subtotal)}`)
+    .map((item) =>
+      item.price_type === 'negotiable'
+        ? `• ${item.product_name} x${item.quantity} = *A convenir*`
+        : `• ${item.product_name} x${item.quantity} = ${formatCurrency(item.subtotal)}`
+    )
     .join('\n')
 
   const total = verifiedTotal
@@ -38,7 +45,7 @@ export function buildWhatsAppMessage(data: OrderData): string {
 📦 *Productos:*
 ${itemsList}
 
-💰 *Total: ${formatCurrency(total)}*
+💰 *Total: ${formatCurrency(total)}*${hasNegotiable ? '\n⚠️ _Algunos productos tienen precio a convenir_' : ''}
 ${paymentSection}
 ---
 _Pedido realizado desde la tienda online_`

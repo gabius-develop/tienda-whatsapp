@@ -1,4 +1,5 @@
 export type ProductType = 'general' | 'ropa' | 'electronica' | 'calzado' | 'accesorio'
+export type PriceType = 'fixed' | 'negotiable'
 
 export interface ClothingAttributes {
   colors?: string[]
@@ -20,6 +21,7 @@ export interface Product {
   description: string | null
   price: number
   was_price: number | null
+  price_type: PriceType
   image_url: string | null
   images: string[] | null
   category: string | null
@@ -114,6 +116,7 @@ export interface ProductFormData {
   description: string
   price: number
   was_price: number | null
+  price_type: PriceType
   category: string
   stock: number
   is_active: boolean

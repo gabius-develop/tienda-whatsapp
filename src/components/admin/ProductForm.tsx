@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Upload, X, ImagePlus, Plus } from 'lucide-react'
-import { Product, ProductType, ClothingAttributes } from '@/types'
+import { Product, ProductType, PriceType, ClothingAttributes } from '@/types'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
@@ -33,7 +33,7 @@ const GENDERS = [
 const productSchema = z.object({
   name: z.string().min(2, 'El nombre es requerido'),
   description: z.string().optional(),
-  price: z.string().transform((v) => parseFloat(v)).pipe(z.number().positive('El precio debe ser mayor a 0')),
+  price: z.string().transform((v) => parseFloat(v) || 0).pipe(z.number().min(0, 'El precio no puede ser negativo')),
   was_price: z.string().optional().transform((v) => (v && v !== '' ? parseFloat(v) : null)),
   category: z.string().optional(),
   stock: z.string().transform((v) => parseInt(v, 10)).pipe(z.number().int().min(0, 'El stock no puede ser negativo')),
@@ -61,6 +61,9 @@ export default function ProductForm({ product, prefill, onSuccess }: ProductForm
     getInitialImages(product) ?? (prefill?.image_url ? [prefill.image_url] : [])
   )
   const [saving, setSaving] = useState(false)
+
+  // ── Tipo de precio ──────────────────────────────────────────────────────
+  const [priceType, setPriceType] = useState<PriceType>(product?.price_type ?? 'fixed')
 
   // ── Tipo de producto ────────────────────────────────────────────────────
   const [productType, setProductType] = useState<ProductType>(product?.product_type ?? 'general')
@@ -166,6 +169,9 @@ export default function ProductForm({ product, prefill, onSuccess }: ProductForm
 
       const payload = {
         ...data,
+        price: priceType === 'negotiable' ? 0 : data.price,
+        was_price: priceType === 'negotiable' ? null : data.was_price,
+        price_type: priceType,
         image_url: images[0] ?? null,
         images: images.length > 0 ? images : null,
         product_type: productType,
@@ -306,22 +312,60 @@ export default function ProductForm({ product, prefill, onSuccess }: ProductForm
           />
         </div>
 
-        <Input
-          label="Precio (MXN) *"
-          type="number"
-          step="0.01"
-          placeholder="0.00"
-          error={errors.price?.message}
-          {...register('price')}
-        />
+        {/* Tipo de precio */}
+        <div className="md:col-span-2 flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Tipo de precio</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setPriceType('fixed')}
+              className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
+                priceType === 'fixed'
+                  ? 'bg-green-600 text-white border-green-600'
+                  : 'bg-white text-gray-700 border-gray-200 hover:border-green-300'
+              }`}
+            >
+              Precio fijo
+            </button>
+            <button
+              type="button"
+              onClick={() => setPriceType('negotiable')}
+              className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
+                priceType === 'negotiable'
+                  ? 'bg-amber-500 text-white border-amber-500'
+                  : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300'
+              }`}
+            >
+              A convenir
+            </button>
+          </div>
+          {priceType === 'negotiable' && (
+            <p className="text-xs text-amber-600 mt-1">
+              El producto se mostrará con &quot;Precio a convenir&quot; en la tienda
+            </p>
+          )}
+        </div>
 
-        <Input
-          label="Precio anterior / tachado"
-          type="number"
-          step="0.01"
-          placeholder="Dejar vacío si no hay descuento"
-          {...register('was_price')}
-        />
+        {priceType === 'fixed' && (
+          <>
+            <Input
+              label="Precio (MXN) *"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              error={errors.price?.message}
+              {...register('price')}
+            />
+
+            <Input
+              label="Precio anterior / tachado"
+              type="number"
+              step="0.01"
+              placeholder="Dejar vacío si no hay descuento"
+              {...register('was_price')}
+            />
+          </>
+        )}
 
         <Input
           label="Stock disponible *"
