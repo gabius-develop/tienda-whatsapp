@@ -124,8 +124,14 @@ export default function ConversationsPage() {
     return el.scrollHeight - el.scrollTop - el.clientHeight < 60
   }
 
-  const scrollToBottom = (smooth = true) => {
-    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' })
+  const scrollToBottom = (smooth = false) => {
+    if (smooth) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    } else {
+      // Instant: usar scrollTop directo para evitar animación visible
+      const el = messagesContainerRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    }
   }
 
   // ── Conversaciones ────────────────────────────────────────────────────────
@@ -162,11 +168,15 @@ export default function ConversationsPage() {
     finally { if (!silent) setInitialLoadingMsgs(false) }
   }, [])
 
+  const prevMsgCountRef = useRef(0)
   useEffect(() => {
-    if (messages.length === 0) return
+    if (messages.length === 0) { prevMsgCountRef.current = 0; return }
     if (wasAtBottomRef.current) {
-      requestAnimationFrame(() => scrollToBottom(!initialLoadingMsgs))
+      // Solo smooth si ya había mensajes y llegaron pocos nuevos (polling)
+      const isSmallUpdate = prevMsgCountRef.current > 0 && messages.length - prevMsgCountRef.current > 0 && messages.length - prevMsgCountRef.current <= 3
+      requestAnimationFrame(() => scrollToBottom(isSmallUpdate))
     }
+    prevMsgCountRef.current = messages.length
   }, [messages])
 
   // ── Refresh automático ────────────────────────────────────────────────────
