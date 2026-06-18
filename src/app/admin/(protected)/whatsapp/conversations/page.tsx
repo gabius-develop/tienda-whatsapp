@@ -108,8 +108,8 @@ export default function ConversationsPage() {
   const [replyText, setReplyText] = useState('')
   const [sending, setSending] = useState(false)
   const [togglingState, setTogglingState] = useState(false)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  const [imageFiles, setImageFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -216,41 +216,55 @@ export default function ConversationsPage() {
 
   const handleSend = async () => {
     if (!selectedPhone || sending) return
-    if (!replyText.trim() && !imageFile) return
+    if (!replyText.trim() && imageFiles.length === 0) return
     setSending(true)
     wasAtBottomRef.current = true
     try {
-      // Si hay imagen, primero subirla
-      let imageUrl: string | undefined
-      if (imageFile) {
-        const formData = new FormData()
-        formData.append('file', imageFile)
-        const uploadRes = await fetch('/api/admin/upload?folder=wa-media', { method: 'POST', body: formData })
-        if (!uploadRes.ok) {
-          toast.error('Error al subir la imagen')
+      if (imageFiles.length > 0) {
+        // Subir y enviar cada imagen
+        for (let i = 0; i < imageFiles.length; i++) {
+          const formData = new FormData()
+          formData.append('file', imageFiles[i])
+          const uploadRes = await fetch('/api/admin/upload?folder=wa-media', { method: 'POST', body: formData })
+          if (!uploadRes.ok) {
+            toast.error(`Error al subir imagen ${i + 1}`)
+            continue
+          }
+          const uploadData = await uploadRes.json()
+          // Solo la primera imagen lleva el caption (texto)
+          const caption = i === 0 ? (replyText.trim() || undefined) : undefined
+          const res = await fetch('/api/admin/whatsapp/conversations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: selectedPhone,
+              message: caption,
+              imageUrl: uploadData.url,
+            }),
+          })
+          if (!res.ok) {
+            const err = await res.json()
+            toast.error(err.error ?? `Error al enviar imagen ${i + 1}`)
+          }
+        }
+      } else {
+        // Solo texto
+        const res = await fetch('/api/admin/whatsapp/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: selectedPhone,
+            message: replyText.trim(),
+          }),
+        })
+        if (!res.ok) {
+          const err = await res.json()
+          toast.error(err.error ?? 'Error al enviar')
           return
         }
-        const uploadData = await uploadRes.json()
-        imageUrl = uploadData.url
-      }
-
-      const res = await fetch('/api/admin/whatsapp/conversations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: selectedPhone,
-          message: replyText.trim() || undefined,
-          imageUrl,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        toast.error(err.error ?? 'Error al enviar')
-        return
       }
       setReplyText('')
-      setImageFile(null)
-      setImagePreview(null)
+      clearImages()
       markAsRead(selectedPhone)
       await fetchMessages(selectedPhone)
       fetchConversations(true)
@@ -262,24 +276,42 @@ export default function ConversationsPage() {
   }
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      toast.error('Solo se permiten imágenes')
-      return
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const newFiles: File[] = []
+    const newPreviews: string[] = []
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      if (!file.type.startsWith('image/')) {
+        toast.error(`"${file.name}" no es una imagen`)
+        continue
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`"${file.name}" supera 5 MB`)
+        continue
+      }
+      newFiles.push(file)
+      newPreviews.push(URL.createObjectURL(file))
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('La imagen no puede superar 5 MB')
-      return
+    if (newFiles.length > 0) {
+      setImageFiles(prev => [...prev, ...newFiles])
+      setImagePreviews(prev => [...prev, ...newPreviews])
     }
-    setImageFile(file)
-    setImagePreview(URL.createObjectURL(file))
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const clearImage = () => {
-    setImageFile(null)
-    if (imagePreview) URL.revokeObjectURL(imagePreview)
-    setImagePreview(null)
+  const removeImage = (index: number) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index))
+    setImagePreviews(prev => {
+      URL.revokeObjectURL(prev[index])
+      return prev.filter((_, i) => i !== index)
+    })
+  }
+
+  const clearImages = () => {
+    imagePreviews.forEach(url => URL.revokeObjectURL(url))
+    setImageFiles([])
+    setImagePreviews([])
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -575,18 +607,31 @@ export default function ConversationsPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Preview de imagen seleccionada */}
-            {imagePreview && (
+            {/* Preview de imágenes seleccionadas */}
+            {imagePreviews.length > 0 && (
               <div className="px-3 pt-2 bg-white border-t border-gray-100">
-                <div className="relative inline-block">
-                  <img src={imagePreview} alt="Preview" className="h-20 rounded-lg object-cover border border-gray-200" />
-                  <button
-                    onClick={clearImage}
-                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {imagePreviews.map((preview, idx) => (
+                    <div key={idx} className="relative shrink-0">
+                      <img src={preview} alt={`Preview ${idx + 1}`} className="h-20 rounded-lg object-cover border border-gray-200" />
+                      <button
+                        onClick={() => removeImage(idx)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {imagePreviews.length > 1 && (
+                    <button
+                      onClick={clearImages}
+                      className="shrink-0 text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                    >
+                      Quitar todas
+                    </button>
+                  )}
                 </div>
+                <p className="text-xs text-gray-400 mt-1">{imagePreviews.length} imagen{imagePreviews.length !== 1 ? 'es' : ''}</p>
               </div>
             )}
 
@@ -598,6 +643,7 @@ export default function ConversationsPage() {
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                multiple
                 className="hidden"
                 onChange={handleImageSelect}
               />
@@ -627,7 +673,7 @@ export default function ConversationsPage() {
               />
               <button
                 onClick={handleSend}
-                disabled={sending || (!replyText.trim() && !imageFile)}
+                disabled={sending || (!replyText.trim() && imageFiles.length === 0)}
                 className="flex items-center justify-center w-10 h-10 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white rounded-xl transition-colors shrink-0"
               >
                 {sending
