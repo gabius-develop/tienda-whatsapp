@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MessageSquare, Phone, RefreshCw, Bot, User, Send, ArrowLeft, BotOff, CirclePlay, Smile, ImagePlus, X } from 'lucide-react'
+import { MessageSquare, Phone, RefreshCw, Bot, User, Send, ArrowLeft, BotOff, CirclePlay, Smile, ImagePlus, X, Pencil, Check, UserCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Conversation {
@@ -110,8 +110,13 @@ export default function ConversationsPage() {
   const [togglingState, setTogglingState] = useState(false)
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
   const [imageFiles, setImageFiles] = useState<File[]>([])
+  const [contacts, setContacts] = useState<Record<string, string>>({})
+  const [editingAlias, setEditingAlias] = useState(false)
+  const [aliasInput, setAliasInput] = useState('')
+  const [savingAlias, setSavingAlias] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const aliasInputRef = useRef<HTMLInputElement>(null)
 
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -179,13 +184,43 @@ export default function ConversationsPage() {
     prevMsgCountRef.current = messages.length
   }, [messages])
 
+  // ── Contactos (alias) ──────────────────────────────────────────────────────
+
+  const fetchContacts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/whatsapp/contacts')
+      if (res.ok) setContacts(await res.json())
+    } catch { /* silencioso */ }
+  }, [])
+
+  const saveAlias = async (phone: string, alias: string) => {
+    setSavingAlias(true)
+    try {
+      const res = await fetch('/api/admin/whatsapp/contacts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, alias }),
+      })
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setContacts(data.contacts)
+      setEditingAlias(false)
+      toast.success(alias.trim() ? 'Contacto guardado' : 'Alias eliminado')
+    } catch {
+      toast.error('Error al guardar el contacto')
+    } finally {
+      setSavingAlias(false)
+    }
+  }
+
   // ── Refresh automático ────────────────────────────────────────────────────
 
   useEffect(() => {
     fetchConversations()
+    fetchContacts()
     const interval = setInterval(() => fetchConversations(true), 30000)
     return () => clearInterval(interval)
-  }, [fetchConversations])
+  }, [fetchConversations, fetchContacts])
 
   useEffect(() => {
     selectedPhoneRef.current = selectedPhone
@@ -219,6 +254,7 @@ export default function ConversationsPage() {
     setSelectedPhone(phone)
     setMessages([])
     setReplyText('')
+    setEditingAlias(false)
     wasAtBottomRef.current = true
     markAsRead(phone)
     fetchMessages(phone)
@@ -453,9 +489,18 @@ export default function ConversationsPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className={`text-sm flex items-center gap-1.5 ${unread ? 'font-bold text-gray-900' : 'font-medium text-gray-900'}`}>
-                      <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      +{conv.customer_phone}
+                    <span className={`text-sm flex items-center gap-1.5 min-w-0 ${unread ? 'font-bold text-gray-900' : 'font-medium text-gray-900'}`}>
+                      {contacts[conv.customer_phone] ? (
+                        <UserCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                      ) : (
+                        <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      )}
+                      <span className="truncate">
+                        {contacts[conv.customer_phone]
+                          ? <>{contacts[conv.customer_phone]} <span className="text-gray-400 font-normal text-xs">+{conv.customer_phone}</span></>
+                          : <>+{conv.customer_phone}</>
+                        }
+                      </span>
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0 ml-2">
                       {unread && !active && (
@@ -497,11 +542,72 @@ export default function ConversationsPage() {
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                  <Phone className="w-4 h-4 text-green-600" />
+                  {contacts[selectedPhone] ? (
+                    <UserCircle className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Phone className="w-4 h-4 text-green-600" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 text-sm">+{selectedPhone}</p>
-                  <p className="text-xs text-gray-400">{messages.length} mensajes</p>
+                  {editingAlias ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        ref={aliasInputRef}
+                        type="text"
+                        value={aliasInput}
+                        onChange={e => setAliasInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') saveAlias(selectedPhone, aliasInput)
+                          if (e.key === 'Escape') setEditingAlias(false)
+                        }}
+                        placeholder="Nombre o alias..."
+                        className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 w-full max-w-[180px]"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => saveAlias(selectedPhone, aliasInput)}
+                        disabled={savingAlias}
+                        className="p-1 text-green-600 hover:bg-green-50 rounded-md transition-colors disabled:opacity-50"
+                        title="Guardar"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setEditingAlias(false)}
+                        className="p-1 text-gray-400 hover:bg-gray-100 rounded-md transition-colors"
+                        title="Cancelar"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <div className="min-w-0">
+                        {contacts[selectedPhone] ? (
+                          <>
+                            <p className="font-medium text-gray-900 text-sm truncate">{contacts[selectedPhone]}</p>
+                            <p className="text-xs text-gray-400">+{selectedPhone}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-medium text-gray-900 text-sm">+{selectedPhone}</p>
+                            <p className="text-xs text-gray-400">{messages.length} mensajes</p>
+                          </>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setAliasInput(contacts[selectedPhone] || '')
+                          setEditingAlias(true)
+                          requestAnimationFrame(() => aliasInputRef.current?.focus())
+                        }}
+                        className="p-1 text-gray-300 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors shrink-0"
+                        title={contacts[selectedPhone] ? 'Editar alias' : 'Agregar alias'}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 {/* Toggle bot — solo en desktop */}
                 <button
