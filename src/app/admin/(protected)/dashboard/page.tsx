@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   TrendingUp, TrendingDown, ShoppingBag, DollarSign, Target,
   MessageSquare, FileSpreadsheet, FileText, RefreshCw, Package,
@@ -260,6 +260,58 @@ function exportPDF(m: Metrics) {
   if (pw) { pw.document.write(html); pw.document.close() }
 }
 
+// ── Emoji picker ─────────────────────────────────────────────────────────────
+
+const EMOJIS = [
+  '👋','😊','😃','😍','🤩','😎','😋','🤗','😇','🙂',
+  '😉','🥳','💪','👍','👏','🙏','🤝','❤️','🔥','⭐',
+  '✅','❌','⚠️','💯','🎉','🎊','💡','✨','💫','🌟',
+  '🛒','🛍️','📦','💰','💵','🏷️','🎁','📱','💬','📢',
+  '🏪','🏠','🚚','📮','💌','🔖','📌','🔍','🆕','🆓',
+]
+
+function EmojiPicker({ onSelect }: { onSelect: (e: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="text-gray-400 hover:text-yellow-500 transition-colors text-base leading-none select-none"
+        title="Insertar emoji"
+      >
+        😊
+      </button>
+      {open && (
+        <div className="absolute bottom-7 right-0 z-30 bg-white border border-gray-200 rounded-xl shadow-xl p-2 w-60">
+          <div className="grid grid-cols-10 gap-0.5 max-h-36 overflow-y-auto">
+            {EMOJIS.map(e => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => { onSelect(e); setOpen(false) }}
+                className="text-lg hover:bg-gray-100 rounded p-0.5 transition-colors"
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Página ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -270,6 +322,10 @@ export default function DashboardPage() {
   const [serviceActive, setServiceActive] = useState(true)
   const [serviceLoading, setServiceLoading] = useState(true)
   const [toggling, setToggling] = useState(false)
+  const [pausedMessage, setPausedMessage] = useState('')
+  const [savedMessage, setSavedMessage] = useState('')
+  const [savingMessage, setSavingMessage] = useState(false)
+  const pausedTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const fetchMetrics = useCallback(async (p: Period, silent = false) => {
     if (!silent) setLoading(true)
@@ -289,10 +345,43 @@ export default function DashboardPage() {
       .then(r => r.json())
       .then(data => {
         setServiceActive(data.service_active !== false)
+        const msg = data.service_paused_message || ''
+        setPausedMessage(msg)
+        setSavedMessage(msg)
       })
       .catch(() => {})
       .finally(() => setServiceLoading(false))
   }, [])
+
+  const insertEmojiInMessage = useCallback((emoji: string) => {
+    const el = pausedTextareaRef.current
+    const start = el ? el.selectionStart : pausedMessage.length
+    const end = el ? el.selectionEnd : pausedMessage.length
+    const next = pausedMessage.slice(0, start) + emoji + pausedMessage.slice(end)
+    setPausedMessage(next)
+    requestAnimationFrame(() => {
+      if (el) { el.focus(); el.selectionStart = el.selectionEnd = start + emoji.length }
+    })
+  }, [pausedMessage])
+
+  const saveMessage = async () => {
+    if (pausedMessage.trim() === savedMessage.trim()) return
+    setSavingMessage(true)
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service_paused_message: pausedMessage }),
+      })
+      if (!res.ok) throw new Error()
+      setSavedMessage(pausedMessage)
+      toast.success('Mensaje actualizado')
+    } catch {
+      toast.error('Error al guardar el mensaje')
+    } finally {
+      setSavingMessage(false)
+    }
+  }
 
   const toggleService = async () => {
     const newValue = !serviceActive
@@ -367,39 +456,77 @@ export default function DashboardPage() {
 
       {/* Estado del servicio */}
       {!serviceLoading && (
-        <div className={`rounded-2xl p-4 border shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors ${
+        <div className={`rounded-2xl border shadow-sm transition-colors ${
           serviceActive
             ? 'bg-green-50 border-green-200'
             : 'bg-red-50 border-red-200'
         }`}>
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl ${serviceActive ? 'bg-green-100' : 'bg-red-100'}`}>
-              <Power className={`w-5 h-5 ${serviceActive ? 'text-green-600' : 'text-red-500'}`} />
+          <div className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${serviceActive ? 'bg-green-100' : 'bg-red-100'}`}>
+                <Power className={`w-5 h-5 ${serviceActive ? 'text-green-600' : 'text-red-500'}`} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {serviceActive ? 'Servicio activo' : 'Servicio pausado'}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {serviceActive
+                    ? 'Tu tienda y bot de WhatsApp están atendiendo clientes normalmente'
+                    : 'Los clientes que escriban por WhatsApp recibirán un mensaje de no disponibilidad'}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-900">
-                {serviceActive ? 'Servicio activo' : 'Servicio pausado'}
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {serviceActive
-                  ? 'Tu tienda y bot de WhatsApp están atendiendo clientes normalmente'
-                  : 'Los clientes que escriban por WhatsApp recibirán un mensaje de no disponibilidad'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={toggleService}
-            disabled={toggling}
-            className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${
-              serviceActive ? 'bg-green-500' : 'bg-gray-300'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                serviceActive ? 'translate-x-6' : 'translate-x-1'
+            <button
+              onClick={toggleService}
+              disabled={toggling}
+              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${
+                serviceActive ? 'bg-green-500' : 'bg-gray-300'
               }`}
-            />
-          </button>
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                  serviceActive ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Mensaje personalizado (visible cuando el servicio está pausado) */}
+          {!serviceActive && (
+            <div className="px-4 pb-4 pt-1 border-t border-red-100">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Mensaje que recibirán tus clientes por WhatsApp
+              </label>
+              <div className="relative">
+                <textarea
+                  ref={pausedTextareaRef}
+                  rows={3}
+                  value={pausedMessage}
+                  onChange={e => setPausedMessage(e.target.value)}
+                  placeholder="Escribe el mensaje que verán tus clientes..."
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400 resize-none pr-9"
+                />
+                <div className="absolute bottom-2.5 right-2.5">
+                  <EmojiPicker onSelect={insertEmojiInMessage} />
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-[11px] text-gray-400">
+                  {pausedMessage.trim() !== savedMessage.trim()
+                    ? 'Tienes cambios sin guardar'
+                    : 'Mensaje guardado'}
+                </p>
+                <button
+                  onClick={saveMessage}
+                  disabled={savingMessage || pausedMessage.trim() === savedMessage.trim()}
+                  className="px-3 py-1.5 bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white text-xs font-semibold rounded-lg transition-colors"
+                >
+                  {savingMessage ? 'Guardando...' : 'Guardar mensaje'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
