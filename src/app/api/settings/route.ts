@@ -30,6 +30,10 @@ export async function GET(request: NextRequest) {
       feature_live: tenant?.feature_live ?? false,
       feature_competencia: tenant?.feature_competencia ?? false,
       feature_mercadopago: tenant?.feature_mercadopago ?? false,
+      service_active: settingsData.service_active !== undefined
+        ? settingsData.service_active === 'true'
+        : DEFAULT_SETTINGS.service_active,
+      service_paused_message: settingsData.service_paused_message ?? DEFAULT_SETTINGS.service_paused_message,
     }
 
     return NextResponse.json(merged)

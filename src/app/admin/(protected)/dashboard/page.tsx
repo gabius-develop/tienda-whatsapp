@@ -4,7 +4,9 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   TrendingUp, TrendingDown, ShoppingBag, DollarSign, Target,
   MessageSquare, FileSpreadsheet, FileText, RefreshCw, Package,
+  Power,
 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { formatCurrency } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -265,6 +267,9 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null)
+  const [serviceActive, setServiceActive] = useState(true)
+  const [serviceLoading, setServiceLoading] = useState(true)
+  const [toggling, setToggling] = useState(false)
 
   const fetchMetrics = useCallback(async (p: Period, silent = false) => {
     if (!silent) setLoading(true)
@@ -277,6 +282,36 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => { fetchMetrics(period) }, [period, fetchMetrics])
+
+  // ── Cargar estado del servicio ───────────────────────────────────────────────
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(data => {
+        setServiceActive(data.service_active !== false)
+      })
+      .catch(() => {})
+      .finally(() => setServiceLoading(false))
+  }, [])
+
+  const toggleService = async () => {
+    const newValue = !serviceActive
+    setToggling(true)
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service_active: String(newValue) }),
+      })
+      if (!res.ok) throw new Error()
+      setServiceActive(newValue)
+      toast.success(newValue ? 'Servicio activado' : 'Servicio pausado — los clientes recibirán el mensaje de no disponibilidad')
+    } catch {
+      toast.error('Error al cambiar el estado del servicio')
+    } finally {
+      setToggling(false)
+    }
+  }
 
   const handleExcel = () => {
     if (!metrics) return
@@ -329,6 +364,44 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
+
+      {/* Estado del servicio */}
+      {!serviceLoading && (
+        <div className={`rounded-2xl p-4 border shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors ${
+          serviceActive
+            ? 'bg-green-50 border-green-200'
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl ${serviceActive ? 'bg-green-100' : 'bg-red-100'}`}>
+              <Power className={`w-5 h-5 ${serviceActive ? 'text-green-600' : 'text-red-500'}`} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                {serviceActive ? 'Servicio activo' : 'Servicio pausado'}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {serviceActive
+                  ? 'Tu tienda y bot de WhatsApp están atendiendo clientes normalmente'
+                  : 'Los clientes que escriban por WhatsApp recibirán un mensaje de no disponibilidad'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={toggleService}
+            disabled={toggling}
+            className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${
+              serviceActive ? 'bg-green-500' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                serviceActive ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

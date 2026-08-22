@@ -1228,6 +1228,32 @@ export async function handleIncomingMessage(
 
   await markAsRead(phoneNumberId, cfg.access_token, msg.messageId)
 
+  // ── Verificar si el servicio está activo ──────────────────────────────────────
+  {
+    const { data: serviceRow } = await db
+      .from('store_settings')
+      .select('value')
+      .eq('tenant_id', tenantId)
+      .eq('key', 'service_active')
+      .single()
+
+    if (serviceRow && serviceRow.value === 'false') {
+      const { data: msgRow } = await db
+        .from('store_settings')
+        .select('value')
+        .eq('tenant_id', tenantId)
+        .eq('key', 'service_paused_message')
+        .single()
+
+      const pausedMsg = msgRow?.value || 'Por el momento no estamos brindando servicio. Te atenderemos pronto. ¡Gracias por tu comprensión!'
+
+      await saveMessage(db, tenantId, msg.from, 'inbound', msg.text ?? `[${msg.type}]`, msg.messageId)
+      await saveMessage(db, tenantId, msg.from, 'outbound', pausedMsg)
+      await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, pausedMsg)
+      return
+    }
+  }
+
   // ── Reenviar mensaje al número administrador (si está configurado) ──────────
   {
     let forwardContent: string

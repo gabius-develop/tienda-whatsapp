@@ -10,6 +10,8 @@ export interface StoreSettings {
   feature_competencia: boolean
   feature_mercadopago: boolean
   primary_color: string
+  service_active: boolean
+  service_paused_message: string
 }
 
 export const DEFAULT_SETTINGS: StoreSettings = {
@@ -24,6 +26,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   feature_competencia: false,
   feature_mercadopago: false,
   primary_color: '#16a34a',
+  service_active: true,
+  service_paused_message: 'Por el momento no estamos brindando servicio. Te atenderemos pronto. ¡Gracias por tu comprensión!',
 }
 
 export async function fetchSettings(): Promise<StoreSettings> {
