@@ -517,73 +517,69 @@ async function handleProducts(
 
   const storeUrl = await getStoreUrl(db, tenantId)
 
-  // ── Carousel template (si está configurado y los productos tienen imagen) ──
-  const carouselTemplate = cfg.carousel_template_name
+  // ── Tarjetas con imagen (si los productos tienen imagen) ──────────────────
   const productsWithImage = products.filter(p => p.image_url)
 
-  if (carouselTemplate && productsWithImage.length >= 2) {
-    // Enviar carousel con tarjetas de productos (mínimo 2 cards requeridos por Meta)
-    const lang = cfg.carousel_template_lang ?? 'es'
-    const cards = productsWithImage.slice(0, 10).map(p => ({
-      imageUrl: p.image_url!,
-      bodyParams: [p.name, formatCurrency(p.price)],
-      buttonUrlSuffix: storeUrl ? `/product/${p.id}` : undefined,
-    }))
+  if (productsWithImage.length > 0) {
+    // Enviar cada producto como tarjeta: imagen + descripción + botones
+    const intro = `🛍️ *Nuestros productos destacados* (${productsWithImage.length}):`
+    await saveMessage(db, tenantId, to, 'outbound', intro)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, to, intro)
 
-    const productList = productsWithImage.map(p => `• ${p.name} — ${formatCurrency(p.price)}`).join('\n')
-    await saveMessage(db, tenantId, to, 'outbound', `🛍️ Productos destacados (carousel):\n${productList}`)
+    for (const p of productsWithImage.slice(0, 5)) {
+      const caption = `*${p.name}*\n💰 ${formatCurrency(p.price)}`
+      await saveMessage(db, tenantId, to, 'outbound', caption)
 
-    const sent = await sendCarouselTemplate(
-      cfg.phone_number_id, cfg.access_token, to,
-      carouselTemplate, lang, cards,
-    )
+      // Enviar imagen con botones de acción
+      await sendButtonMessage(
+        cfg.phone_number_id, cfg.access_token, to,
+        caption,
+        [
+          { id: `cart_add_${p.id}`, title: '🛒 Agregar' },
+          { id: `product_${p.id}`,  title: '📋 Ver detalle' },
+        ],
+        { headerImageUrl: p.image_url! },
+      )
+    }
 
-    if (sent) {
-      // Después del carousel, enviar el menú de lista para que puedan seleccionar un producto
-      const byCategory: Record<string, Product[]> = {}
-      for (const p of products) {
-        const cat = p.category ?? 'General'
-        if (!byCategory[cat]) byCategory[cat] = []
-        byCategory[cat].push(p)
-      }
-      const sections = Object.entries(byCategory).map(([cat, items]) => ({
-        title: cat,
-        rows: items.map(p => ({ id: `product_${p.id}`, title: p.name.substring(0, 24), description: formatCurrency(p.price) })),
-      }))
+    // Productos sin imagen → enviar como lista si hay
+    const productsNoImage = products.filter(p => !p.image_url)
+    if (productsNoImage.length > 0) {
+      const sections = [{
+        title: 'Más productos',
+        rows: productsNoImage.map(p => ({ id: `product_${p.id}`, title: p.name.substring(0, 24), description: formatCurrency(p.price) })),
+      }]
       await sendListMessage(
         cfg.phone_number_id, cfg.access_token, to,
-        '¿Te interesa alguno? Selecciona un producto para agregarlo al carrito:',
-        'Ver productos', sections,
+        'También tenemos estos productos:',
+        'Ver más', sections,
       )
-      return
     }
-    // Si falla el carousel, continuar con el flujo normal de lista
-    console.log('[WA bot] Carousel template falló, usando lista como fallback')
+  } else {
+    // ── Sin imágenes: lista de productos (flujo original) ────────────────────
+    const byCategory: Record<string, Product[]> = {}
+    for (const p of products) {
+      const cat = p.category ?? 'General'
+      if (!byCategory[cat]) byCategory[cat] = []
+      byCategory[cat].push(p)
+    }
+
+    const sections = Object.entries(byCategory).map(([cat, items]) => ({
+      title: cat,
+      rows: items.map(p => ({ id: `product_${p.id}`, title: p.name.substring(0, 24), description: formatCurrency(p.price) })),
+    }))
+
+    const productList = products.map(p => `• ${p.name} — ${formatCurrency(p.price)}`).join('\n')
+    const headerText = '🛍️ Los 5 más populares'
+    await saveMessage(db, tenantId, to, 'outbound', `${headerText}:\n${productList}`)
+
+    await sendListMessage(
+      cfg.phone_number_id, cfg.access_token, to,
+      'Selecciona un producto para ver sus detalles y agregarlo al carrito:',
+      'Ver productos', sections,
+      { headerText },
+    )
   }
-
-  // ── Fallback: lista de productos (flujo original) ──────────────────────────
-  const byCategory: Record<string, Product[]> = {}
-  for (const p of products) {
-    const cat = p.category ?? 'General'
-    if (!byCategory[cat]) byCategory[cat] = []
-    byCategory[cat].push(p)
-  }
-
-  const sections = Object.entries(byCategory).map(([cat, items]) => ({
-    title: cat,
-    rows: items.map(p => ({ id: `product_${p.id}`, title: p.name.substring(0, 24), description: formatCurrency(p.price) })),
-  }))
-
-  const productList = products.map(p => `• ${p.name} — ${formatCurrency(p.price)}`).join('\n')
-  const headerText = '🛍️ Los 5 más populares'
-  await saveMessage(db, tenantId, to, 'outbound', `${headerText}:\n${productList}`)
-
-  await sendListMessage(
-    cfg.phone_number_id, cfg.access_token, to,
-    'Selecciona un producto para ver sus detalles y agregarlo al carrito:',
-    'Ver productos', sections,
-    { headerText },
-  )
 
   // Mensaje adicional con link a la tienda completa
   if (storeUrl) {
