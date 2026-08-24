@@ -158,6 +158,8 @@ interface BotConfig {
   support_message:       string
   no_orders_message:     string
   forward_phone:         string
+  carousel_template_name: string
+  carousel_template_lang: string
 }
 
 interface MetaTemplate {
@@ -213,6 +215,8 @@ const DEFAULT_CONFIG: BotConfig = {
   support_message:   '¡Gracias por contactarnos! 🙏 Un agente te atenderá en breve. Para una respuesta más rápida puedes escribirnos directamente.',
   no_orders_message: 'No encontramos pedidos con ese número. Verifica que sea el número correcto o intenta con otro.',
   forward_phone:     '',
+  carousel_template_name: '',
+  carousel_template_lang: 'es',
 }
 
 const STEP_TYPE_OPTIONS: { value: StepType; label: string; desc: string }[] = [
@@ -345,6 +349,8 @@ export default function WhatsAppBotPage() {
             no_orders_message:    data.no_orders_message    ?? DEFAULT_CONFIG.no_orders_message,
             is_restaurant:        data.is_restaurant        ?? false,
             forward_phone:        data.forward_phone        ?? '',
+            carousel_template_name: data.carousel_template_name ?? '',
+            carousel_template_lang: data.carousel_template_lang ?? 'es',
           })
         }
       })
@@ -954,6 +960,61 @@ export default function WhatsAppBotPage() {
               setUploadingWelcome(false)
             }}
           />
+        </div>
+
+        {/* ── Carousel de productos ── */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Carousel de productos</h2>
+            {config.carousel_template_name && (
+              <span className="shrink-0 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                Activo
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500">
+            Cuando un cliente ve los productos, se enviarán como tarjetas tipo carousel con imagen, nombre, precio y botón.
+            Necesitas crear y tener aprobado un template tipo &quot;carousel&quot; en Meta Business Manager.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nombre del template <span className="text-gray-400 font-normal">(como aparece en Meta)</span>
+            </label>
+            <input
+              type="text"
+              value={config.carousel_template_name}
+              onChange={(e) => setConfig((c) => ({ ...c, carousel_template_name: e.target.value }))}
+              placeholder="productos_destacados"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Idioma del template
+            </label>
+            <select
+              value={config.carousel_template_lang}
+              onChange={(e) => setConfig((c) => ({ ...c, carousel_template_lang: e.target.value }))}
+              className={inputClass}
+            >
+              <option value="es">Espanol (es)</option>
+              <option value="es_MX">Espanol Mexico (es_MX)</option>
+              <option value="es_AR">Espanol Argentina (es_AR)</option>
+              <option value="en">English (en)</option>
+              <option value="en_US">English US (en_US)</option>
+              <option value="pt_BR">Portugues Brasil (pt_BR)</option>
+            </select>
+          </div>
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+            <p className="text-xs text-blue-700 leading-relaxed">
+              <strong>Como crear el template en Meta:</strong><br/>
+              1. Ve a Meta Business Manager &rarr; WhatsApp &rarr; Message Templates<br/>
+              2. Crea un template tipo &quot;Carousel&quot;<br/>
+              3. Cada card debe tener: Header (imagen), Body con variables &#123;&#123;1&#125;&#125; (nombre) y &#123;&#123;2&#125;&#125; (precio), y un boton URL con sufijo dinamico<br/>
+              4. Espera la aprobacion de Meta y coloca el nombre aqui<br/>
+              5. Si dejas el campo vacio, los productos se mostraran como lista (comportamiento normal)
+            </p>
+          </div>
         </div>
 
         {/* ── Mensajes del bot ── */}

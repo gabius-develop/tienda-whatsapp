@@ -316,6 +316,99 @@ export async function fetchMetaTemplates(
   }
 }
 
+// ─── Carousel Template ───────────────────────────────────────────────────────
+
+export interface CarouselCard {
+  imageUrl: string               // URL pública de la imagen del card
+  bodyParams?: string[]           // Variables {{1}}, {{2}}… del body del card
+  buttonUrlSuffix?: string        // Sufijo dinámico para botón URL (ej: "/producto/123")
+}
+
+/**
+ * Envía un template tipo carousel (como los de la captura: tarjetas horizontales
+ * con imagen, texto y botón CTA).
+ *
+ * Requisitos:
+ * - El template debe estar creado y APROBADO en Meta Business Manager
+ * - El template debe ser de tipo "carousel" con cards que tengan header image,
+ *   body con variables, y botón URL dinámico
+ *
+ * @param templateName — nombre del template aprobado en Meta
+ * @param languageCode — código de idioma (ej: "es", "es_MX")
+ * @param cards — array de cards con imagen, variables y URL
+ * @param bodyParams — variables del body principal del template (fuera de los cards)
+ */
+export function sendCarouselTemplate(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  templateName: string,
+  languageCode: string,
+  cards: CarouselCard[],
+  bodyParams: string[] = [],
+): Promise<boolean> {
+  const components: object[] = []
+
+  if (bodyParams.length > 0) {
+    components.push({
+      type: 'body',
+      parameters: bodyParams.map((text) => ({ type: 'text', text })),
+    })
+  }
+
+  const carouselCards = cards.map((card, index) => {
+    const cardComponents: object[] = []
+
+    // Header: imagen del card
+    cardComponents.push({
+      type: 'header',
+      parameters: [{ type: 'image', image: { link: card.imageUrl } }],
+    })
+
+    // Body: variables del card
+    if (card.bodyParams && card.bodyParams.length > 0) {
+      cardComponents.push({
+        type: 'body',
+        parameters: card.bodyParams.map((text) => ({ type: 'text', text })),
+      })
+    }
+
+    // Botón URL dinámico (index 0)
+    if (card.buttonUrlSuffix) {
+      cardComponents.push({
+        type: 'button',
+        sub_type: 'url',
+        index: 0,
+        parameters: [{ type: 'text', text: card.buttonUrlSuffix }],
+      })
+    }
+
+    return {
+      card_index: index,
+      components: cardComponents,
+    }
+  })
+
+  components.push({
+    type: 'carousel',
+    cards: carouselCards,
+  })
+
+  return post(phoneNumberId, accessToken, {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+      components,
+    },
+  })
+}
+
+// ─── Meta Templates ──────────────────────────────────────────────────────────
+
 export interface MetaTemplate {
   name:       string
   status:     string

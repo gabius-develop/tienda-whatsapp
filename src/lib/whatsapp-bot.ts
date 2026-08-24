@@ -11,6 +11,7 @@ import {
   sendImageMessage,
   sendButtonMessage,
   sendListMessage,
+  sendCarouselTemplate,
   markAsRead,
 } from './whatsapp-cloud'
 
@@ -64,6 +65,8 @@ export interface WaBotConfig {
   support_message: string
   no_orders_message: string
   forward_phone?: string | null
+  carousel_template_name?: string | null
+  carousel_template_lang?: string | null
 }
 
 type ConversationState =
@@ -82,7 +85,7 @@ interface ConversationContext {
 export interface IncomingMessage {
   messageId: string
   from: string
-  type: 'text' | 'interactive' | 'location' | 'image' | 'other'
+  type: 'text' | 'interactive' | 'location' | 'image' | 'audio' | 'video' | 'other'
   text?: string
   interactiveId?: string
   interactiveTitle?: string
@@ -93,6 +96,11 @@ export interface IncomingMessage {
   imageId?:           string
   imageMimeType?:     string
   imageCaption?:      string
+  audioId?:           string
+  audioMimeType?:     string
+  videoId?:           string
+  videoMimeType?:     string
+  videoCaption?:      string
 }
 
 interface FlowStep {
@@ -430,24 +438,19 @@ async function sendPostActionMenu(
 
 // ─── Flujo: Ver productos (top 5 más populares) ───────────────────────────────
 
-async function handleProducts(
-  cfg: WaBotConfig,
-  to: string,
-  tenantId: string,
+type Product = { id: string; name: string; price: number; category: string | null; image_url: string | null }
+
+/** Obtiene los top 5 productos (más vendidos o más recientes como fallback) */
+async function getTopProducts(
   db: ReturnType<typeof srvClient>,
-  flows: FlowStep[],
-) {
-  // Obtener productos más vendidos a partir de order_items
+  tenantId: string,
+): Promise<Product[]> {
   const { data: salesData } = await db
     .from('order_items')
     .select('product_id')
     .eq('tenant_id', tenantId)
 
-  type Product = { id: string; name: string; price: number; category: string | null }
-  let products: Product[] = []
-
   if (salesData && salesData.length > 0) {
-    // Contar ventas por producto en JS
     const salesCount = new Map<string, number>()
     for (const row of salesData) {
       if (row.product_id) salesCount.set(row.product_id, (salesCount.get(row.product_id) ?? 0) + 1)
@@ -460,29 +463,50 @@ async function handleProducts(
     if (topIds.length > 0) {
       const { data } = await db
         .from('products')
-        .select('id, name, price, category')
+        .select('id, name, price, category, image_url')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .in('id', topIds)
       if (data && data.length > 0) {
-        // Mantener orden de popularidad
         const map = new Map(data.map(p => [p.id, p]))
-        products = topIds.map(id => map.get(id)).filter((p): p is Product => p !== undefined)
+        return topIds.map(id => map.get(id)).filter((p): p is Product => p !== undefined)
       }
     }
   }
 
-  // Fallback: 5 productos más recientes si no hay historial de ventas
-  if (products.length === 0) {
-    const { data } = await db
-      .from('products')
-      .select('id, name, price, category')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(5)
-    products = data ?? []
-  }
+  // Fallback: 5 productos más recientes
+  const { data } = await db
+    .from('products')
+    .select('id, name, price, category, image_url')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(5)
+  return data ?? []
+}
+
+/** Obtiene la URL base de la tienda */
+async function getStoreUrl(
+  db: ReturnType<typeof srvClient>,
+  tenantId: string,
+): Promise<string | null> {
+  const { data: urlRow } = await db
+    .from('store_settings')
+    .select('value')
+    .eq('tenant_id', tenantId)
+    .eq('key', 'store_url')
+    .maybeSingle()
+  return urlRow?.value ?? process.env.NEXT_PUBLIC_APP_URL ?? null
+}
+
+async function handleProducts(
+  cfg: WaBotConfig,
+  to: string,
+  tenantId: string,
+  db: ReturnType<typeof srvClient>,
+  flows: FlowStep[],
+) {
+  const products = await getTopProducts(db, tenantId)
 
   if (products.length === 0) {
     const text = 'Pronto tendremos productos disponibles. ¡Vuelve a visitarnos! 😊'
@@ -491,15 +515,53 @@ async function handleProducts(
     return sendPostActionMenu(cfg, to, db, tenantId)
   }
 
-  // Obtener URL de la tienda desde store_settings
-  const { data: urlRow } = await db
-    .from('store_settings')
-    .select('value')
-    .eq('tenant_id', tenantId)
-    .eq('key', 'store_url')
-    .maybeSingle()
-  const storeUrl = urlRow?.value ?? process.env.NEXT_PUBLIC_APP_URL ?? null
+  const storeUrl = await getStoreUrl(db, tenantId)
 
+  // ── Carousel template (si está configurado y los productos tienen imagen) ──
+  const carouselTemplate = cfg.carousel_template_name
+  const productsWithImage = products.filter(p => p.image_url)
+
+  if (carouselTemplate && productsWithImage.length >= 2) {
+    // Enviar carousel con tarjetas de productos (mínimo 2 cards requeridos por Meta)
+    const lang = cfg.carousel_template_lang ?? 'es'
+    const cards = productsWithImage.slice(0, 10).map(p => ({
+      imageUrl: p.image_url!,
+      bodyParams: [p.name, formatCurrency(p.price)],
+      buttonUrlSuffix: storeUrl ? `/product/${p.id}` : undefined,
+    }))
+
+    const productList = productsWithImage.map(p => `• ${p.name} — ${formatCurrency(p.price)}`).join('\n')
+    await saveMessage(db, tenantId, to, 'outbound', `🛍️ Productos destacados (carousel):\n${productList}`)
+
+    const sent = await sendCarouselTemplate(
+      cfg.phone_number_id, cfg.access_token, to,
+      carouselTemplate, lang, cards,
+    )
+
+    if (sent) {
+      // Después del carousel, enviar el menú de lista para que puedan seleccionar un producto
+      const byCategory: Record<string, Product[]> = {}
+      for (const p of products) {
+        const cat = p.category ?? 'General'
+        if (!byCategory[cat]) byCategory[cat] = []
+        byCategory[cat].push(p)
+      }
+      const sections = Object.entries(byCategory).map(([cat, items]) => ({
+        title: cat,
+        rows: items.map(p => ({ id: `product_${p.id}`, title: p.name.substring(0, 24), description: formatCurrency(p.price) })),
+      }))
+      await sendListMessage(
+        cfg.phone_number_id, cfg.access_token, to,
+        '¿Te interesa alguno? Selecciona un producto para agregarlo al carrito:',
+        'Ver productos', sections,
+      )
+      return
+    }
+    // Si falla el carousel, continuar con el flujo normal de lista
+    console.log('[WA bot] Carousel template falló, usando lista como fallback')
+  }
+
+  // ── Fallback: lista de productos (flujo original) ──────────────────────────
   const byCategory: Record<string, Product[]> = {}
   for (const p of products) {
     const cat = p.category ?? 'General'
@@ -1267,6 +1329,10 @@ export async function handleIncomingMessage(
       if (msg.locationAddress) parts.push(msg.locationAddress)
       if (msg.locationLatitude !== undefined) parts.push(`${msg.locationLatitude},${msg.locationLongitude}`)
       forwardContent = `[Ubicación] ${parts.join(' — ')}`
+    } else if (msg.type === 'audio') {
+      forwardContent = '[Audio 🎵]'
+    } else if (msg.type === 'video') {
+      forwardContent = `[Video 🎬] ${msg.videoCaption ?? ''}`
     } else {
       forwardContent = '[mensaje de otro tipo]'
     }
@@ -1443,6 +1509,28 @@ export async function handleIncomingMessage(
 
     // Ubicación fuera de contexto
     const reply = 'Recibí tu ubicación 📍, pero en este momento no estoy esperando una dirección. Usa el menú para hacer un pedido.'
+    await saveMessage(db, tenantId, msg.from, 'outbound', reply)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, reply)
+    return sendPostActionMenu(cfg, msg.from, db, tenantId)
+  }
+
+  // ── Mensajes de audio ─────────────────────────────────────────────────────
+  if (msg.type === 'audio') {
+    const state = await getConversationState(db, tenantId, msg.from)
+    if (state === 'support') return
+
+    const reply = 'Recibí tu audio 🎵. Por el momento no puedo escuchar audios, pero puedes escribirme tu mensaje y te ayudo con gusto.'
+    await saveMessage(db, tenantId, msg.from, 'outbound', reply)
+    await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, reply)
+    return sendPostActionMenu(cfg, msg.from, db, tenantId)
+  }
+
+  // ── Mensajes de video ──────────────────────────────────────────────────────
+  if (msg.type === 'video') {
+    const state = await getConversationState(db, tenantId, msg.from)
+    if (state === 'support') return
+
+    const reply = 'Recibí tu video 🎬. Por el momento no puedo reproducir videos, pero puedes escribirme tu consulta y te ayudo con gusto.'
     await saveMessage(db, tenantId, msg.from, 'outbound', reply)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, reply)
     return sendPostActionMenu(cfg, msg.from, db, tenantId)

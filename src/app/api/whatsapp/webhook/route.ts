@@ -110,6 +110,17 @@ export async function POST(request: NextRequest) {
             incoming.imageId       = img?.id as string
             incoming.imageMimeType = img?.mime_type as string
             incoming.imageCaption  = img?.caption as string | undefined
+          } else if (m.type === 'audio') {
+            const aud = m.audio as Record<string, unknown>
+            incoming.type          = 'audio'
+            incoming.audioId       = aud?.id as string
+            incoming.audioMimeType = aud?.mime_type as string
+          } else if (m.type === 'video') {
+            const vid = m.video as Record<string, unknown>
+            incoming.type          = 'video'
+            incoming.videoId       = vid?.id as string
+            incoming.videoMimeType = vid?.mime_type as string
+            incoming.videoCaption  = vid?.caption as string | undefined
           } else if (m.type === 'location') {
             const loc = m.location as Record<string, unknown>
             incoming.type             = 'location'
@@ -163,6 +174,64 @@ export async function POST(request: NextRequest) {
                 }
                 const caption = incoming.imageCaption || '📷 Imagen'
                 await saveMessage(db, cfg.tenant_id, incoming.from, 'inbound', caption, incoming.messageId, publicUrl ?? undefined, 'image')
+              } else if (incoming.type === 'audio' && incoming.audioId) {
+                // Descargar audio de Meta y subir a Supabase storage
+                let publicUrl: string | null = null
+                try {
+                  const mediaUrl = await getMediaUrl(incoming.audioId, cfg.access_token)
+                  if (mediaUrl) {
+                    const media = await downloadMedia(mediaUrl, cfg.access_token)
+                    if (media) {
+                      const mimeExt: Record<string, string> = { 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/amr': 'amr', 'audio/aac': 'aac' }
+                      const ext = mimeExt[media.contentType] ?? incoming.audioMimeType?.split('/')[1] ?? 'ogg'
+                      const fileName = `wa-media/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+                      const { error: uploadErr } = await db.storage
+                        .from('product-images')
+                        .upload(fileName, new Uint8Array(media.buffer), {
+                          contentType: media.contentType,
+                          upsert: false,
+                        })
+                      if (!uploadErr) {
+                        const { data: urlData } = db.storage.from('product-images').getPublicUrl(fileName)
+                        publicUrl = urlData.publicUrl
+                      } else {
+                        console.error('[WA webhook] audio upload error:', uploadErr.message)
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error('[WA webhook] audio processing error:', err)
+                }
+                await saveMessage(db, cfg.tenant_id, incoming.from, 'inbound', '🎵 Audio', incoming.messageId, publicUrl ?? undefined, 'audio')
+              } else if (incoming.type === 'video' && incoming.videoId) {
+                // Descargar video de Meta y subir a Supabase storage
+                let publicUrl: string | null = null
+                try {
+                  const mediaUrl = await getMediaUrl(incoming.videoId, cfg.access_token)
+                  if (mediaUrl) {
+                    const media = await downloadMedia(mediaUrl, cfg.access_token)
+                    if (media) {
+                      const ext = incoming.videoMimeType?.split('/')[1] ?? 'mp4'
+                      const fileName = `wa-media/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+                      const { error: uploadErr } = await db.storage
+                        .from('product-images')
+                        .upload(fileName, new Uint8Array(media.buffer), {
+                          contentType: media.contentType,
+                          upsert: false,
+                        })
+                      if (!uploadErr) {
+                        const { data: urlData } = db.storage.from('product-images').getPublicUrl(fileName)
+                        publicUrl = urlData.publicUrl
+                      } else {
+                        console.error('[WA webhook] video upload error:', uploadErr.message)
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error('[WA webhook] video processing error:', err)
+                }
+                const videoCaption = incoming.videoCaption || '🎬 Video'
+                await saveMessage(db, cfg.tenant_id, incoming.from, 'inbound', videoCaption, incoming.messageId, publicUrl ?? undefined, 'video')
               } else if (incoming.type === 'location') {
                 const locText = `📍 ${incoming.locationName || 'Ubicación'}: ${incoming.locationLatitude}, ${incoming.locationLongitude}`
                 await saveMessage(db, cfg.tenant_id, incoming.from, 'inbound', locText, incoming.messageId)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MessageSquare, Phone, RefreshCw, Bot, User, Send, ArrowLeft, BotOff, CirclePlay, Smile, ImagePlus, X, Pencil, Check, UserCircle } from 'lucide-react'
+import { MessageSquare, Phone, RefreshCw, Bot, User, Send, ArrowLeft, BotOff, CirclePlay, Smile, ImagePlus, X, Pencil, Check, UserCircle, LayoutGrid } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Conversation {
@@ -114,6 +114,7 @@ export default function ConversationsPage() {
   const [editingAlias, setEditingAlias] = useState(false)
   const [aliasInput, setAliasInput] = useState('')
   const [savingAlias, setSavingAlias] = useState(false)
+  const [sendingCarousel, setSendingCarousel] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const aliasInputRef = useRef<HTMLInputElement>(null)
@@ -390,6 +391,31 @@ export default function ConversationsPage() {
       toast.error('Error inesperado')
     } finally {
       setTogglingState(false)
+    }
+  }
+
+  const handleSendCarousel = async () => {
+    if (!selectedPhone || sendingCarousel) return
+    setSendingCarousel(true)
+    wasAtBottomRef.current = true
+    try {
+      const res = await fetch('/api/admin/whatsapp/carousel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: selectedPhone }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Error al enviar carousel')
+        return
+      }
+      toast.success(`Carousel enviado (${data.products_sent} productos)`)
+      await fetchMessages(selectedPhone)
+      fetchConversations(true)
+    } catch {
+      toast.error('Error inesperado')
+    } finally {
+      setSendingCarousel(false)
     }
   }
 
@@ -703,6 +729,24 @@ export default function ConversationsPage() {
                           />
                         </a>
                       )}
+                      {msg.media_url && msg.media_type === 'audio' && (
+                        <div className="px-3 pt-3">
+                          <audio controls preload="none" className="w-full max-w-xs">
+                            <source src={msg.media_url} />
+                          </audio>
+                        </div>
+                      )}
+                      {msg.media_url && msg.media_type === 'video' && (
+                        <div className="px-1 pt-1">
+                          <video
+                            controls
+                            preload="none"
+                            className="w-full max-w-xs rounded-t-2xl"
+                          >
+                            <source src={msg.media_url} />
+                          </video>
+                        </div>
+                      )}
                       <div className="px-3.5 py-2.5">
                         <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                         <p className={`text-[10px] mt-0.5 ${msg.direction === 'outbound' ? 'text-green-200' : 'text-gray-400'}`}>
@@ -770,6 +814,19 @@ export default function ConversationsPage() {
                 title="Enviar imagen"
               >
                 <ImagePlus className="w-5 h-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSendCarousel}
+                disabled={sendingCarousel}
+                className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-purple-600 transition-colors rounded-xl hover:bg-gray-100 shrink-0 disabled:opacity-40"
+                title="Enviar carousel de productos"
+              >
+                {sendingCarousel
+                  ? <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                  : <LayoutGrid className="w-5 h-5" />
+                }
               </button>
 
               <textarea
