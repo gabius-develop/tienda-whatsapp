@@ -1514,26 +1514,17 @@ export async function handleIncomingMessage(
     return sendPostActionMenu(cfg, msg.from, db, tenantId)
   }
 
-  // ── Mensajes de audio ─────────────────────────────────────────────────────
-  if (msg.type === 'audio') {
+  // ── Mensajes de audio o video → pausar bot y pasar a soporte ────────────
+  if (msg.type === 'audio' || msg.type === 'video') {
     const state = await getConversationState(db, tenantId, msg.from)
     if (state === 'support') return
 
-    const reply = 'Recibí tu audio 🎵. Por el momento no puedo escuchar audios, pero puedes escribirme tu mensaje y te ayudo con gusto.'
+    const reply = msg.type === 'audio'
+      ? 'Recibí tu audio 🎵. Te comunico con un agente para atenderte. ¡Un momento!'
+      : 'Recibí tu video 🎬. Te comunico con un agente para atenderte. ¡Un momento!'
     await saveMessage(db, tenantId, msg.from, 'outbound', reply)
     await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, reply)
-    return sendPostActionMenu(cfg, msg.from, db, tenantId)
-  }
-
-  // ── Mensajes de video ──────────────────────────────────────────────────────
-  if (msg.type === 'video') {
-    const state = await getConversationState(db, tenantId, msg.from)
-    if (state === 'support') return
-
-    const reply = 'Recibí tu video 🎬. Por el momento no puedo reproducir videos, pero puedes escribirme tu consulta y te ayudo con gusto.'
-    await saveMessage(db, tenantId, msg.from, 'outbound', reply)
-    await sendTextMessage(cfg.phone_number_id, cfg.access_token, msg.from, reply)
-    return sendPostActionMenu(cfg, msg.from, db, tenantId)
+    return setConversationState(db, tenantId, msg.from, 'support')
   }
 
   // ── Cualquier otro tipo de mensaje ────────────────────────────────────────
