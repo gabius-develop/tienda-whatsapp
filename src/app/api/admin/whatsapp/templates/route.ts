@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getTenantBySlug, getTenantSlugFromRequest } from '@/lib/tenant'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { sendTemplateMessage } from '@/lib/whatsapp-cloud'
+import { saveMessage } from '@/lib/whatsapp-bot'
 
 const WA_API_VERSION = 'v20.0'
 
@@ -156,6 +157,13 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     )
   }
+
+  // Guardar en historial de conversación para que aparezca en el chat
+  const previewParts: string[] = [`📋 Plantilla: ${templateName}`]
+  if (bParams.length > 0) previewParts.push(`Params: ${bParams.join(', ')}`)
+  const previewText = previewParts.join('\n')
+
+  await saveMessage(db, tenant.id, cleanPhone, 'outbound', previewText)
 
   return NextResponse.json({ success: true })
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MessageSquare, Phone, RefreshCw, Bot, User, Send, ArrowLeft, BotOff, CirclePlay, Smile, ImagePlus, X, Pencil, Check, UserCircle, LayoutGrid } from 'lucide-react'
+import { MessageSquare, Phone, RefreshCw, Bot, User, Send, ArrowLeft, BotOff, CirclePlay, Smile, ImagePlus, X, Pencil, Check, UserCircle, LayoutGrid, FileText, ChevronDown, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Conversation {
@@ -21,6 +21,21 @@ interface Message {
   media_url?: string | null
   media_type?: string | null
   created_at: string
+}
+
+interface MetaTemplate {
+  name: string
+  status: string
+  language: string
+  category: string
+  components: Array<{
+    type: string
+    text?: string
+    example?: {
+      body_text?: string[][]
+      header_text?: string[]
+    }
+  }>
 }
 
 function timeAgo(dateStr: string) {
@@ -115,6 +130,13 @@ export default function ConversationsPage() {
   const [aliasInput, setAliasInput] = useState('')
   const [savingAlias, setSavingAlias] = useState(false)
   const [sendingCarousel, setSendingCarousel] = useState(false)
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [templates, setTemplates] = useState<MetaTemplate[]>([])
+  const [loadingTemplates, setLoadingTemplates] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<MetaTemplate | null>(null)
+  const [templateBodyParams, setTemplateBodyParams] = useState<string[]>([])
+  const [templateHeaderParams, setTemplateHeaderParams] = useState<string[]>([])
+  const [sendingTemplate, setSendingTemplate] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const aliasInputRef = useRef<HTMLInputElement>(null)
@@ -416,6 +438,78 @@ export default function ConversationsPage() {
       toast.error('Error inesperado')
     } finally {
       setSendingCarousel(false)
+    }
+  }
+
+  // ── Plantillas (Templates) ─────────────────────────────────────────────────
+
+  const openTemplateModal = async () => {
+    setShowTemplateModal(true)
+    setSelectedTemplate(null)
+    setTemplateBodyParams([])
+    setTemplateHeaderParams([])
+    if (templates.length === 0) {
+      setLoadingTemplates(true)
+      try {
+        const res = await fetch('/api/admin/whatsapp/templates')
+        const data = await res.json()
+        setTemplates(Array.isArray(data.templates) ? data.templates : [])
+        if (data.error) toast.error(data.error)
+      } catch {
+        toast.error('Error al cargar plantillas')
+      } finally {
+        setLoadingTemplates(false)
+      }
+    }
+  }
+
+  const selectTemplate = (tpl: MetaTemplate) => {
+    setSelectedTemplate(tpl)
+    // Detectar variables del body
+    const bodyComp = tpl.components.find(c => c.type === 'BODY')
+    const bodyMatches = bodyComp?.text?.match(/\{\{\d+\}\}/g) ?? []
+    const bodyExampleCount = bodyComp?.example?.body_text?.[0]?.length ?? 0
+    const bodyCount = Math.max(bodyMatches.length, bodyExampleCount)
+    setTemplateBodyParams(Array(bodyCount).fill(''))
+
+    // Detectar variables del header
+    const headerComp = tpl.components.find(c => c.type === 'HEADER')
+    const headerMatches = headerComp?.text?.match(/\{\{\d+\}\}/g) ?? []
+    const headerExampleCount = headerComp?.example?.header_text?.length ?? 0
+    const headerCount = Math.max(headerMatches.length, headerExampleCount)
+    setTemplateHeaderParams(Array(headerCount).fill(''))
+  }
+
+  const handleSendTemplate = async () => {
+    if (!selectedPhone || !selectedTemplate || sendingTemplate) return
+    setSendingTemplate(true)
+    wasAtBottomRef.current = true
+    try {
+      const res = await fetch('/api/admin/whatsapp/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: selectedPhone,
+          templateName: selectedTemplate.name,
+          languageCode: selectedTemplate.language,
+          bodyParams: templateBodyParams.length > 0 ? templateBodyParams : undefined,
+          headerParams: templateHeaderParams.length > 0 ? templateHeaderParams : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Error al enviar plantilla')
+        return
+      }
+      toast.success('Plantilla enviada')
+      setShowTemplateModal(false)
+      setSelectedTemplate(null)
+      await fetchMessages(selectedPhone)
+      fetchConversations(true)
+    } catch {
+      toast.error('Error inesperado')
+    } finally {
+      setSendingTemplate(false)
     }
   }
 
@@ -829,6 +923,15 @@ export default function ConversationsPage() {
                 }
               </button>
 
+              <button
+                type="button"
+                onClick={openTemplateModal}
+                className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-blue-600 transition-colors rounded-xl hover:bg-gray-100 shrink-0"
+                title="Enviar plantilla de Meta"
+              >
+                <FileText className="w-5 h-5" />
+              </button>
+
               <textarea
                 ref={textareaRef}
                 value={replyText}
@@ -865,6 +968,165 @@ export default function ConversationsPage() {
           </div>
         )}
       </div>
+
+      {/* ── Modal de Plantillas ── */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowTemplateModal(false)}>
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header del modal */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
+                <FileText className="w-4 h-4 text-blue-600" />
+                Enviar Plantilla de Meta
+              </h2>
+              <button
+                onClick={() => setShowTemplateModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              {loadingTemplates ? (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                  <Loader2 className="w-8 h-8 animate-spin mb-3" />
+                  <p className="text-sm">Cargando plantillas...</p>
+                </div>
+              ) : templates.length === 0 ? (
+                <div className="text-center text-gray-400 py-12">
+                  <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No hay plantillas aprobadas</p>
+                  <p className="text-xs mt-1">Asegurate de tener el WABA ID configurado y plantillas aprobadas en Meta</p>
+                </div>
+              ) : !selectedTemplate ? (
+                /* Lista de plantillas para seleccionar */
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Selecciona una plantilla</p>
+                  {templates.map((tpl, idx) => (
+                    <button
+                      key={`${tpl.name}-${tpl.language}-${idx}`}
+                      onClick={() => selectTemplate(tpl)}
+                      className="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-colors group"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-sm text-gray-900 group-hover:text-blue-700">{tpl.name}</span>
+                        <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">{tpl.language}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">
+                        {tpl.components.find(c => c.type === 'BODY')?.text ?? 'Sin contenido'}
+                      </p>
+                      <span className="text-[10px] text-gray-400 mt-1 inline-block">{tpl.category}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                /* Plantilla seleccionada — mostrar preview y variables */
+                <div className="space-y-4">
+                  <button
+                    onClick={() => setSelectedTemplate(null)}
+                    className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium"
+                  >
+                    <ChevronDown className="w-3 h-3 rotate-90" /> Cambiar plantilla
+                  </button>
+
+                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-sm text-gray-900">{selectedTemplate.name}</span>
+                      <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{selectedTemplate.language}</span>
+                    </div>
+                    {selectedTemplate.components.map((comp, i) => (
+                      <div key={i} className="mb-1">
+                        {comp.type === 'HEADER' && comp.text && (
+                          <p className="text-xs font-semibold text-gray-700">{comp.text}</p>
+                        )}
+                        {comp.type === 'BODY' && (
+                          <p className="text-xs text-gray-600 whitespace-pre-wrap">{comp.text}</p>
+                        )}
+                        {comp.type === 'FOOTER' && (
+                          <p className="text-[10px] text-gray-400 mt-1">{comp.text}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Variables del header */}
+                  {templateHeaderParams.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Variables del encabezado</p>
+                      {templateHeaderParams.map((val, i) => (
+                        <div key={`h-${i}`}>
+                          <label className="text-xs text-gray-500 mb-1 block">{`{{${i + 1}}}`}</label>
+                          <input
+                            type="text"
+                            value={val}
+                            onChange={e => {
+                              const next = [...templateHeaderParams]
+                              next[i] = e.target.value
+                              setTemplateHeaderParams(next)
+                            }}
+                            placeholder={`Valor para {{${i + 1}}}`}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Variables del body */}
+                  {templateBodyParams.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Variables del cuerpo</p>
+                      {templateBodyParams.map((val, i) => (
+                        <div key={`b-${i}`}>
+                          <label className="text-xs text-gray-500 mb-1 block">{`{{${i + 1}}}`}</label>
+                          <input
+                            type="text"
+                            value={val}
+                            onChange={e => {
+                              const next = [...templateBodyParams]
+                              next[i] = e.target.value
+                              setTemplateBodyParams(next)
+                            }}
+                            placeholder={`Valor para {{${i + 1}}}`}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer del modal */}
+            {selectedTemplate && (
+              <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowTemplateModal(false)}
+                  className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSendTemplate}
+                  disabled={sendingTemplate}
+                  className="text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-5 py-2 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  {sendingTemplate ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
+                  ) : (
+                    <><Send className="w-4 h-4" /> Enviar plantilla</>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
