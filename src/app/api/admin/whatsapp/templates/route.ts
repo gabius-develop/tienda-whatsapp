@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
   if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
 
   const body = await request.json()
-  const { to, templateName, languageCode, bodyParams, headerParams } = body
+  const { to, templateName, languageCode, bodyParams, headerParams, headerImageUrl, headerVideoUrl, headerDocumentUrl } = body
 
   if (!to || !templateName || !languageCode) {
     return NextResponse.json(
@@ -142,12 +142,30 @@ export async function POST(request: NextRequest) {
 
   // Construir payload para enviar directamente y capturar error detallado
   const components: object[] = []
-  if (hParams.length > 0) {
+
+  // Header: puede ser texto, imagen, video o documento
+  if (headerImageUrl) {
+    components.push({
+      type: 'header',
+      parameters: [{ type: 'image', image: { link: headerImageUrl } }],
+    })
+  } else if (headerVideoUrl) {
+    components.push({
+      type: 'header',
+      parameters: [{ type: 'video', video: { link: headerVideoUrl } }],
+    })
+  } else if (headerDocumentUrl) {
+    components.push({
+      type: 'header',
+      parameters: [{ type: 'document', document: { link: headerDocumentUrl } }],
+    })
+  } else if (hParams.length > 0) {
     components.push({
       type: 'header',
       parameters: hParams.map((text: string) => ({ type: 'text', text })),
     })
   }
+
   if (bParams.length > 0) {
     components.push({
       type: 'body',

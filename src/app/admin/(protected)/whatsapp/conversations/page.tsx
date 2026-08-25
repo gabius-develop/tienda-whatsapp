@@ -30,6 +30,7 @@ interface MetaTemplate {
   category: string
   components: Array<{
     type: string
+    format?: string
     text?: string
     example?: {
       body_text?: string[][]
@@ -136,7 +137,11 @@ export default function ConversationsPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<MetaTemplate | null>(null)
   const [templateBodyParams, setTemplateBodyParams] = useState<string[]>([])
   const [templateHeaderParams, setTemplateHeaderParams] = useState<string[]>([])
+  const [templateHeaderFormat, setTemplateHeaderFormat] = useState<string | null>(null)
+  const [templateHeaderMediaUrl, setTemplateHeaderMediaUrl] = useState('')
   const [sendingTemplate, setSendingTemplate] = useState(false)
+  const [uploadingTemplateMedia, setUploadingTemplateMedia] = useState(false)
+  const templateFileRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const aliasInputRef = useRef<HTMLInputElement>(null)
@@ -448,6 +453,8 @@ export default function ConversationsPage() {
     setSelectedTemplate(null)
     setTemplateBodyParams([])
     setTemplateHeaderParams([])
+    setTemplateHeaderFormat(null)
+    setTemplateHeaderMediaUrl('')
     if (templates.length === 0) {
       setLoadingTemplates(true)
       try {
@@ -472,29 +479,72 @@ export default function ConversationsPage() {
     const bodyCount = Math.max(bodyMatches.length, bodyExampleCount)
     setTemplateBodyParams(Array(bodyCount).fill(''))
 
-    // Detectar variables del header
+    // Detectar formato del header (TEXT, IMAGE, VIDEO, DOCUMENT)
     const headerComp = tpl.components.find(c => c.type === 'HEADER')
-    const headerMatches = headerComp?.text?.match(/\{\{\d+\}\}/g) ?? []
-    const headerExampleCount = headerComp?.example?.header_text?.length ?? 0
-    const headerCount = Math.max(headerMatches.length, headerExampleCount)
-    setTemplateHeaderParams(Array(headerCount).fill(''))
+    const format = headerComp?.format
+    setTemplateHeaderFormat(format ?? null)
+    setTemplateHeaderMediaUrl('')
+
+    if (format === 'IMAGE' || format === 'VIDEO' || format === 'DOCUMENT') {
+      // Header de media — no tiene variables de texto
+      setTemplateHeaderParams([])
+    } else {
+      // Header de texto — puede tener variables {{1}}
+      const headerMatches = headerComp?.text?.match(/\{\{\d+\}\}/g) ?? []
+      const headerExampleCount = headerComp?.example?.header_text?.length ?? 0
+      const headerCount = Math.max(headerMatches.length, headerExampleCount)
+      setTemplateHeaderParams(Array(headerCount).fill(''))
+    }
+  }
+
+  const handleTemplateMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('El archivo supera 10 MB')
+      return
+    }
+    setUploadingTemplateMedia(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/admin/upload?folder=wa-media', { method: 'POST', body: formData })
+      if (!res.ok) { toast.error('Error al subir archivo'); return }
+      const data = await res.json()
+      setTemplateHeaderMediaUrl(data.url)
+    } catch {
+      toast.error('Error al subir archivo')
+    } finally {
+      setUploadingTemplateMedia(false)
+      if (templateFileRef.current) templateFileRef.current.value = ''
+    }
   }
 
   const handleSendTemplate = async () => {
     if (!selectedPhone || !selectedTemplate || sendingTemplate) return
+    // Validar que si requiere media, esté cargada
+    if ((templateHeaderFormat === 'IMAGE' || templateHeaderFormat === 'VIDEO' || templateHeaderFormat === 'DOCUMENT') && !templateHeaderMediaUrl) {
+      toast.error(`Debes subir ${templateHeaderFormat === 'IMAGE' ? 'una imagen' : templateHeaderFormat === 'VIDEO' ? 'un video' : 'un documento'} para el encabezado`)
+      return
+    }
     setSendingTemplate(true)
     wasAtBottomRef.current = true
     try {
+      const payload: Record<string, unknown> = {
+        to: selectedPhone,
+        templateName: selectedTemplate.name,
+        languageCode: selectedTemplate.language,
+        bodyParams: templateBodyParams.length > 0 ? templateBodyParams : undefined,
+        headerParams: templateHeaderParams.length > 0 ? templateHeaderParams : undefined,
+      }
+      if (templateHeaderFormat === 'IMAGE' && templateHeaderMediaUrl) payload.headerImageUrl = templateHeaderMediaUrl
+      if (templateHeaderFormat === 'VIDEO' && templateHeaderMediaUrl) payload.headerVideoUrl = templateHeaderMediaUrl
+      if (templateHeaderFormat === 'DOCUMENT' && templateHeaderMediaUrl) payload.headerDocumentUrl = templateHeaderMediaUrl
+
       const res = await fetch('/api/admin/whatsapp/templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: selectedPhone,
-          templateName: selectedTemplate.name,
-          languageCode: selectedTemplate.language,
-          bodyParams: templateBodyParams.length > 0 ? templateBodyParams : undefined,
-          headerParams: templateHeaderParams.length > 0 ? templateHeaderParams : undefined,
-        }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -1019,7 +1069,14 @@ export default function ConversationsPage() {
                       <p className="text-xs text-gray-500 truncate">
                         {tpl.components.find(c => c.type === 'BODY')?.text ?? 'Sin contenido'}
                       </p>
-                      <span className="text-[10px] text-gray-400 mt-1 inline-block">{tpl.category}</span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] text-gray-400">{tpl.category}</span>
+                        {tpl.components.find(c => c.type === 'HEADER' && (c.format === 'IMAGE' || c.format === 'VIDEO' || c.format === 'DOCUMENT')) && (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">
+                            {tpl.components.find(c => c.type === 'HEADER')?.format === 'IMAGE' ? 'Con imagen' : tpl.components.find(c => c.type === 'HEADER')?.format === 'VIDEO' ? 'Con video' : 'Con documento'}
+                          </span>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -1053,7 +1110,52 @@ export default function ConversationsPage() {
                     ))}
                   </div>
 
-                  {/* Variables del header */}
+                  {/* Header media (IMAGE/VIDEO/DOCUMENT) */}
+                  {(templateHeaderFormat === 'IMAGE' || templateHeaderFormat === 'VIDEO' || templateHeaderFormat === 'DOCUMENT') && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                        {templateHeaderFormat === 'IMAGE' ? 'Imagen del encabezado' : templateHeaderFormat === 'VIDEO' ? 'Video del encabezado' : 'Documento del encabezado'}
+                      </p>
+                      <input
+                        ref={templateFileRef}
+                        type="file"
+                        accept={templateHeaderFormat === 'IMAGE' ? 'image/*' : templateHeaderFormat === 'VIDEO' ? 'video/*' : '*'}
+                        className="hidden"
+                        onChange={handleTemplateMediaUpload}
+                      />
+                      {templateHeaderMediaUrl ? (
+                        <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+                          {templateHeaderFormat === 'IMAGE' && (
+                            <img src={templateHeaderMediaUrl} alt="Header" className="h-16 rounded object-cover" />
+                          )}
+                          <span className="text-xs text-green-700 flex-1 truncate">Archivo cargado</span>
+                          <button
+                            type="button"
+                            onClick={() => setTemplateHeaderMediaUrl('')}
+                            className="p-1 text-red-400 hover:text-red-600 rounded"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => templateFileRef.current?.click()}
+                          disabled={uploadingTemplateMedia}
+                          className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors disabled:opacity-50"
+                        >
+                          {uploadingTemplateMedia ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Subiendo...</>
+                          ) : (
+                            <><ImagePlus className="w-4 h-4" /> Subir {templateHeaderFormat === 'IMAGE' ? 'imagen' : templateHeaderFormat === 'VIDEO' ? 'video' : 'documento'}</>
+                          )}
+                        </button>
+                      )}
+                      <p className="text-[10px] text-gray-400">La plantilla requiere {templateHeaderFormat === 'IMAGE' ? 'una imagen' : templateHeaderFormat === 'VIDEO' ? 'un video' : 'un documento'} en el encabezado</p>
+                    </div>
+                  )}
+
+                  {/* Variables del header (solo para headers de texto) */}
                   {templateHeaderParams.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Variables del encabezado</p>
