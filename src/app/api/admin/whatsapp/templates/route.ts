@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getTenantBySlug, getTenantSlugFromRequest } from '@/lib/tenant'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { sendTemplateMessage } from '@/lib/whatsapp-cloud'
 import { saveMessage } from '@/lib/whatsapp-bot'
 
 const WA_API_VERSION = 'v20.0'
@@ -141,21 +140,66 @@ export async function POST(request: NextRequest) {
     headerParams: hParams,
   })
 
-  const ok = await sendTemplateMessage(
-    cfg.phone_number_id,
-    cfg.access_token,
-    cleanPhone,
-    templateName,
-    languageCode,
-    bParams,
-    hParams,
-  )
+  // Construir payload para enviar directamente y capturar error detallado
+  const components: object[] = []
+  if (hParams.length > 0) {
+    components.push({
+      type: 'header',
+      parameters: hParams.map((text: string) => ({ type: 'text', text })),
+    })
+  }
+  if (bParams.length > 0) {
+    components.push({
+      type: 'body',
+      parameters: bParams.map((text: string) => ({ type: 'text', text })),
+    })
+  }
 
-  if (!ok) {
-    return NextResponse.json(
-      { error: 'Meta rechazó la plantilla. Revisa los logs de Railway para ver el error exacto.' },
-      { status: 500 },
+  const WA_API = 'v20.0'
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: cleanPhone,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+      ...(components.length > 0 ? { components } : {}),
+    },
+  }
+
+  console.log('[templates POST] payload:', JSON.stringify(payload))
+
+  try {
+    const waRes = await fetch(
+      `https://graph.facebook.com/${WA_API}/${cfg.phone_number_id}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${cfg.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      },
     )
+
+    if (!waRes.ok) {
+      const errBody = await waRes.text()
+      console.error('[templates POST] Meta error:', waRes.status, errBody)
+
+      // Intentar extraer mensaje legible
+      let metaMsg = `Meta respondió ${waRes.status}`
+      try {
+        const parsed = JSON.parse(errBody)
+        if (parsed?.error?.message) metaMsg = parsed.error.message
+        if (parsed?.error?.error_user_msg) metaMsg = parsed.error.error_user_msg
+      } catch { /* usar el genérico */ }
+
+      return NextResponse.json({ error: metaMsg }, { status: 500 })
+    }
+  } catch (err) {
+    console.error('[templates POST] fetch error:', err)
+    return NextResponse.json({ error: 'Error de conexión con Meta' }, { status: 500 })
   }
 
   // Guardar en historial de conversación para que aparezca en el chat
