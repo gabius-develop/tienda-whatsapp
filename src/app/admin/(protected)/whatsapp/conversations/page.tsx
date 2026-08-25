@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MessageSquare, Phone, RefreshCw, Bot, User, Send, ArrowLeft, BotOff, CirclePlay, Smile, ImagePlus, X, Pencil, Check, UserCircle, LayoutGrid, FileText, ChevronDown, Loader2 } from 'lucide-react'
+import { MessageSquare, Phone, RefreshCw, Bot, User, Send, ArrowLeft, BotOff, CirclePlay, Smile, ImagePlus, X, Pencil, Check, UserCircle, LayoutGrid, FileText, ChevronDown, Loader2, Users, Plus, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Conversation {
@@ -141,6 +141,11 @@ export default function ConversationsPage() {
   const [templateHeaderMediaUrl, setTemplateHeaderMediaUrl] = useState('')
   const [sendingTemplate, setSendingTemplate] = useState(false)
   const [uploadingTemplateMedia, setUploadingTemplateMedia] = useState(false)
+  const [templateSendMode, setTemplateSendMode] = useState<'single' | 'bulk'>('single')
+  const [bulkRecipients, setBulkRecipients] = useState<Set<string>>(new Set())
+  const [bulkPhoneInput, setBulkPhoneInput] = useState('')
+  const [bulkSearch, setBulkSearch] = useState('')
+  const [bulkProgress, setBulkProgress] = useState<{ sent: number; failed: number; total: number } | null>(null)
   const templateFileRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -455,6 +460,11 @@ export default function ConversationsPage() {
     setTemplateHeaderParams([])
     setTemplateHeaderFormat(null)
     setTemplateHeaderMediaUrl('')
+    setTemplateSendMode('single')
+    setBulkRecipients(new Set())
+    setBulkPhoneInput('')
+    setBulkSearch('')
+    setBulkProgress(null)
     if (templates.length === 0) {
       setLoadingTemplates(true)
       try {
@@ -520,47 +530,103 @@ export default function ConversationsPage() {
     }
   }
 
+  const buildTemplatePayload = (phone: string) => {
+    const payload: Record<string, unknown> = {
+      to: phone,
+      templateName: selectedTemplate!.name,
+      languageCode: selectedTemplate!.language,
+      bodyParams: templateBodyParams.length > 0 ? templateBodyParams : undefined,
+      headerParams: templateHeaderParams.length > 0 ? templateHeaderParams : undefined,
+    }
+    if (templateHeaderFormat === 'IMAGE' && templateHeaderMediaUrl) payload.headerImageUrl = templateHeaderMediaUrl
+    if (templateHeaderFormat === 'VIDEO' && templateHeaderMediaUrl) payload.headerVideoUrl = templateHeaderMediaUrl
+    if (templateHeaderFormat === 'DOCUMENT' && templateHeaderMediaUrl) payload.headerDocumentUrl = templateHeaderMediaUrl
+    return payload
+  }
+
   const handleSendTemplate = async () => {
-    if (!selectedPhone || !selectedTemplate || sendingTemplate) return
-    // Validar que si requiere media, esté cargada
+    if (!selectedTemplate || sendingTemplate) return
+    // Validar media
     if ((templateHeaderFormat === 'IMAGE' || templateHeaderFormat === 'VIDEO' || templateHeaderFormat === 'DOCUMENT') && !templateHeaderMediaUrl) {
       toast.error(`Debes subir ${templateHeaderFormat === 'IMAGE' ? 'una imagen' : templateHeaderFormat === 'VIDEO' ? 'un video' : 'un documento'} para el encabezado`)
       return
     }
-    setSendingTemplate(true)
-    wasAtBottomRef.current = true
-    try {
-      const payload: Record<string, unknown> = {
-        to: selectedPhone,
-        templateName: selectedTemplate.name,
-        languageCode: selectedTemplate.language,
-        bodyParams: templateBodyParams.length > 0 ? templateBodyParams : undefined,
-        headerParams: templateHeaderParams.length > 0 ? templateHeaderParams : undefined,
-      }
-      if (templateHeaderFormat === 'IMAGE' && templateHeaderMediaUrl) payload.headerImageUrl = templateHeaderMediaUrl
-      if (templateHeaderFormat === 'VIDEO' && templateHeaderMediaUrl) payload.headerVideoUrl = templateHeaderMediaUrl
-      if (templateHeaderFormat === 'DOCUMENT' && templateHeaderMediaUrl) payload.headerDocumentUrl = templateHeaderMediaUrl
 
-      const res = await fetch('/api/admin/whatsapp/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error ?? 'Error al enviar plantilla')
-        return
+    if (templateSendMode === 'single') {
+      // Envío a conversación actual
+      if (!selectedPhone) return
+      setSendingTemplate(true)
+      wasAtBottomRef.current = true
+      try {
+        const res = await fetch('/api/admin/whatsapp/templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildTemplatePayload(selectedPhone)),
+        })
+        const data = await res.json()
+        if (!res.ok) { toast.error(data.error ?? 'Error al enviar plantilla'); return }
+        toast.success('Plantilla enviada')
+        setShowTemplateModal(false)
+        setSelectedTemplate(null)
+        await fetchMessages(selectedPhone)
+        fetchConversations(true)
+      } catch { toast.error('Error inesperado') }
+      finally { setSendingTemplate(false) }
+    } else {
+      // Envío masivo
+      if (bulkRecipients.size === 0) { toast.error('Selecciona al menos un destinatario'); return }
+      setSendingTemplate(true)
+      const phones = Array.from(bulkRecipients)
+      const progress = { sent: 0, failed: 0, total: phones.length }
+      setBulkProgress({ ...progress })
+
+      for (const phone of phones) {
+        try {
+          const res = await fetch('/api/admin/whatsapp/templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(buildTemplatePayload(phone)),
+          })
+          if (res.ok) { progress.sent++ } else { progress.failed++ }
+        } catch { progress.failed++ }
+        setBulkProgress({ ...progress })
       }
-      toast.success('Plantilla enviada')
-      setShowTemplateModal(false)
-      setSelectedTemplate(null)
-      await fetchMessages(selectedPhone)
-      fetchConversations(true)
-    } catch {
-      toast.error('Error inesperado')
-    } finally {
+
       setSendingTemplate(false)
+      if (progress.failed === 0) {
+        toast.success(`Plantilla enviada a ${progress.sent} contactos`)
+        setShowTemplateModal(false)
+        setSelectedTemplate(null)
+      } else {
+        toast.error(`Enviada a ${progress.sent}, falló en ${progress.failed}`)
+      }
+      fetchConversations(true)
     }
+  }
+
+  const toggleBulkRecipient = (phone: string) => {
+    setBulkRecipients(prev => {
+      const next = new Set(prev)
+      if (next.has(phone)) next.delete(phone); else next.add(phone)
+      return next
+    })
+  }
+
+  const addBulkPhone = () => {
+    const clean = bulkPhoneInput.replace(/[\s\-\(\)\+]/g, '')
+    if (!/^\d{7,15}$/.test(clean)) { toast.error('Número inválido'); return }
+    setBulkRecipients(prev => new Set(prev).add(clean))
+    setBulkPhoneInput('')
+  }
+
+  const selectAllRecipients = () => {
+    const all = new Set(bulkRecipients)
+    conversations.forEach(c => all.add(c.customer_phone))
+    setBulkRecipients(all)
+  }
+
+  const deselectAllRecipients = () => {
+    setBulkRecipients(new Set())
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -1200,30 +1266,196 @@ export default function ConversationsPage() {
                       ))}
                     </div>
                   )}
+
+                  {/* ── Destinatarios ── */}
+                  <div className="space-y-3 pt-2 border-t border-gray-100">
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Destinatarios</p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTemplateSendMode('single')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-2 rounded-lg transition-colors ${
+                          templateSendMode === 'single'
+                            ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        Conversación actual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTemplateSendMode('bulk')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-2 rounded-lg transition-colors ${
+                          templateSendMode === 'bulk'
+                            ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        Varios contactos
+                      </button>
+                    </div>
+
+                    {templateSendMode === 'single' && selectedPhone && (
+                      <div className="flex items-center gap-2 p-2.5 bg-blue-50 rounded-lg border border-blue-100">
+                        <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                        <span className="text-sm text-blue-800 font-medium">
+                          {contacts[selectedPhone] ? `${contacts[selectedPhone]} (+${selectedPhone})` : `+${selectedPhone}`}
+                        </span>
+                      </div>
+                    )}
+
+                    {templateSendMode === 'bulk' && (
+                      <div className="space-y-2">
+                        {/* Agregar número manual */}
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={bulkPhoneInput}
+                            onChange={e => setBulkPhoneInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBulkPhone() } }}
+                            placeholder="Agregar número (ej: 521234567890)"
+                            className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={addBulkPhone}
+                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shrink-0"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Seleccionar/deseleccionar todos + buscador */}
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={bulkSearch}
+                              onChange={e => setBulkSearch(e.target.value)}
+                              placeholder="Buscar contacto..."
+                              className="w-full text-xs border border-gray-200 rounded-lg pl-8 pr-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                          <button type="button" onClick={selectAllRecipients} className="text-[10px] text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap">
+                            Todos
+                          </button>
+                          <span className="text-gray-300">|</span>
+                          <button type="button" onClick={deselectAllRecipients} className="text-[10px] text-gray-500 hover:text-gray-700 font-medium whitespace-nowrap">
+                            Ninguno
+                          </button>
+                        </div>
+
+                        {/* Lista de conversaciones como checkboxes */}
+                        <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-50">
+                          {conversations
+                            .filter(c => {
+                              if (!bulkSearch.trim()) return true
+                              const q = bulkSearch.toLowerCase()
+                              return c.customer_phone.includes(q) || (contacts[c.customer_phone] ?? '').toLowerCase().includes(q)
+                            })
+                            .map(c => (
+                            <label
+                              key={c.customer_phone}
+                              className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 cursor-pointer transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={bulkRecipients.has(c.customer_phone)}
+                                onChange={() => toggleBulkRecipient(c.customer_phone)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                              />
+                              <span className="text-xs text-gray-700 truncate flex-1">
+                                {contacts[c.customer_phone]
+                                  ? <>{contacts[c.customer_phone]} <span className="text-gray-400">+{c.customer_phone}</span></>
+                                  : `+${c.customer_phone}`
+                                }
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+
+                        {/* Números manuales agregados que no están en conversaciones */}
+                        {Array.from(bulkRecipients).filter(p => !conversations.find(c => c.customer_phone === p)).length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-gray-400 font-medium">Números agregados manualmente:</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {Array.from(bulkRecipients).filter(p => !conversations.find(c => c.customer_phone === p)).map(p => (
+                                <span key={p} className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
+                                  +{p}
+                                  <button type="button" onClick={() => toggleBulkRecipient(p)} className="text-blue-400 hover:text-red-500">
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Contador */}
+                        <p className="text-xs text-gray-500">
+                          {bulkRecipients.size === 0
+                            ? 'Ningún contacto seleccionado'
+                            : <><strong>{bulkRecipients.size}</strong> contacto{bulkRecipients.size !== 1 ? 's' : ''} seleccionado{bulkRecipients.size !== 1 ? 's' : ''}</>
+                          }
+                        </p>
+
+                        {/* Progreso de envío masivo */}
+                        {bulkProgress && (
+                          <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600">Progreso: {bulkProgress.sent + bulkProgress.failed} / {bulkProgress.total}</span>
+                              <span className="flex items-center gap-2">
+                                {bulkProgress.sent > 0 && <span className="text-green-600 font-medium">{bulkProgress.sent} enviados</span>}
+                                {bulkProgress.failed > 0 && <span className="text-red-600 font-medium">{bulkProgress.failed} fallidos</span>}
+                              </span>
+                            </div>
+                            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                style={{ width: `${((bulkProgress.sent + bulkProgress.failed) / bulkProgress.total) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Footer del modal */}
             {selectedTemplate && (
-              <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
-                <button
-                  onClick={() => setShowTemplateModal(false)}
-                  className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSendTemplate}
-                  disabled={sendingTemplate}
-                  className="text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-5 py-2 rounded-lg transition-colors flex items-center gap-2"
-                >
-                  {sendingTemplate ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
-                  ) : (
-                    <><Send className="w-4 h-4" /> Enviar plantilla</>
+              <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between">
+                <div className="text-xs text-gray-400">
+                  {templateSendMode === 'bulk' && bulkRecipients.size > 0 && (
+                    <span>{bulkRecipients.size} destinatario{bulkRecipients.size !== 1 ? 's' : ''}</span>
                   )}
-                </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { setShowTemplateModal(false); setBulkProgress(null) }}
+                    className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSendTemplate}
+                    disabled={sendingTemplate || (templateSendMode === 'bulk' && bulkRecipients.size === 0)}
+                    className="text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-5 py-2 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    {sendingTemplate ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
+                    ) : templateSendMode === 'bulk' ? (
+                      <><Users className="w-4 h-4" /> Enviar a {bulkRecipients.size || ''}</>
+                    ) : (
+                      <><Send className="w-4 h-4" /> Enviar plantilla</>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </div>
